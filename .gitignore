@@ -1,2 +1,11 @@
-/.vscode
-/lib
+.DS_Store
+
+*.class
+bin/
+out/
+build/
+target/
+.classpath
+.project
+.settings/
+.vscode/
