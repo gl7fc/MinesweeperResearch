@@ -65,6 +65,7 @@ public class Main {
             // 行末で改行
             if ((i + 1) % size == 0) {
                 System.out.println();
+
             }
         }
     }
