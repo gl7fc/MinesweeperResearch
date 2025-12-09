@@ -1,21 +1,25 @@
 public class Main {
     public static void main(String[] args) {
-        int[] board = { -1, -1, -1, -1, 3, -1, -1, 4, -1, -1, 4, -1, 2, 2, -1, 1 };
-        int size = 4;
+        int size = 8;
+        int bombs = 26;
+        int puzzles = 5;
 
-        HintDifficultySolver solver = new HintDifficultySolver(board, size);
-        solver.printBoard(); // 初期盤面表示
-        solver.solve();
-        solver.printBoard(); // 結果表示
+        // サイズ・地雷数を指定してランダムなパズルを生成
+        int[] board = PuzzleGenerator.generatePuzzle(size, bombs);
+        System.out.println("=====初期盤面=====");
+        PuzzleGenerator.printBoard(board, size);
 
-        int[] needHints = solver.getHintRequired();
-        System.out.println("\n必要ヒント数 (空白セルごと):");
-        for (int i = 0; i < needHints.length; i++) {
-            if (board[i] == -1) {
-                System.out.println("セル " + i + " : " +
-                        (needHints[i] == -1 ? "推論不可" : needHints[i]));
-            }
+        // 明日やる
+        // 一意解判定をしっかりやる
+        // 解答出力を制約行列の行ではなく地雷のあるセル番号で出力する
+
+        for (int i = 0; i < puzzles; i++) {
+            PuzzleMinimizer pm = new PuzzleMinimizer(board, size);
+            int[] puzzle = pm.minimizeHints();
+
+            System.out.println("");
+            System.out.println("=====盤面" + (i + 1) + "=====");
+            PuzzleGenerator.printBoard(puzzle, size);
         }
-
     }
 }

@@ -1,20 +1,21 @@
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
+// 盤面の1次元配列 → 制約行列・制約配列
 public class ConstraintBuilder {
     // 制約行列と制約配列を返す用のクラス
     public class Data {
         public int[][] matrix;
         public int[] constraint;
+        public int blanks;
 
         // コンストラクタ
-        Data(int[][] matrix, int[] constraint) {
+        Data(int[][] matrix, int[] constraint, int blanks) {
             this.matrix = matrix;
             this.constraint = constraint;
+            this.blanks = blanks;
         }
     }
 
@@ -38,8 +39,6 @@ public class ConstraintBuilder {
         for (int i = 0; i < board.length; i++) {
             if (board[i] == -1) {
                 blanks.add(i); // 空白セル
-            } else if (board[i] == -2) { // 無視するセル
-                // 何もしない
             } else {
                 hintCells.add(i); // ヒントセル
             }
@@ -66,8 +65,6 @@ public class ConstraintBuilder {
 
     // 制約行列・制約配列を生成
     public Data buildConstraints() {
-        // findCells(); // 空白セルとヒントセルを分類
-
         int blankCount = blanks.size(); // 空白セルの個数
         int hintCount = hintCells.size(); // ヒントセルの個数
 
@@ -109,7 +106,7 @@ public class ConstraintBuilder {
             constraint[col + 1] = hintValue;
         }
 
-        return new Data(matrix, constraint);
+        return new Data(matrix, constraint, blankCount);
 
     }
 
@@ -191,7 +188,7 @@ public class ConstraintBuilder {
                 if (j < constraint.length - 1)
                     writer.append(",");
             }
-            writer.append("\n");
+            writer.append(System.lineSeparator());
 
             System.out.println("✅ CSV出力完了: " + filename);
         } catch (IOException e) {
@@ -199,14 +196,4 @@ public class ConstraintBuilder {
         }
     }
 
-    public void enableOnlyHints(List<Integer> subset) {
-        Set<Integer> subsetSet = new HashSet<>(subset);
-        // hintCells は ConstraintBuilder 内にあるヒントセルリスト
-        for (int hintIdx : hintCells) {
-            if (!subsetSet.contains(hintIdx)) {
-                // 無効化する方法の例: ヒント値を -1 にする
-                board[hintIdx] = -2; // -2 で「無効ヒント」を表す
-            }
-        }
-    }
 }
