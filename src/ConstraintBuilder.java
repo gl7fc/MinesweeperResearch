@@ -37,6 +37,12 @@ public class ConstraintBuilder {
     // 空白セルとヒントセルを探索してリスト化
     private void findCells() {
         for (int i = 0; i < board.length; i++) {
+            // ★追加: HintDifficultySolverによって無効化されたセル(-2)は無視する
+            // これがないと -2 をヒント数字として計算してしまい破綻する
+            if (board[i] == -2) {
+                continue;
+            }
+
             if (board[i] == -1) {
                 blanks.add(i); // 空白セル
             } else {
@@ -68,12 +74,23 @@ public class ConstraintBuilder {
         int blankCount = blanks.size(); // 空白セルの個数
         int hintCount = hintCells.size(); // ヒントセルの個数
 
+        // ヒントが0個の場合など、行列が作れない場合のガードが必要なら追加するが
+        // 基本的には空の行列を返してDLX側で即終了判定される
+
         int totalRows = blankCount * 2; // 制約行列の行数
         int totalCols = blankCount + hintCount * 2; // 制約行列の列数
+
+        // サイズ0の配列作成を防ぐ（念のため）
+        if (totalRows == 0)
+            totalRows = 1;
+        if (totalCols == 0)
+            totalCols = 1;
 
         int[][] matrix = new int[totalRows][totalCols];
         int[] constraint = new int[totalCols];
 
+        // 空白セルがない場合は処理をスキップ
+        if (blankCount > 0) {
         // セル制約部分
         for (int i = 0; i < blankCount; i++) {
             matrix[i * 2][i] = 1; // #0
@@ -105,9 +122,9 @@ public class ConstraintBuilder {
             constraint[col] = bCount - hintValue;
             constraint[col + 1] = hintValue;
         }
+        }
 
         return new Data(matrix, constraint, blankCount);
-
     }
 
     // (表示用) 列ラベルを生成
@@ -147,7 +164,13 @@ public class ConstraintBuilder {
 
         // 行ごとに出力
         for (int i = 0; i < matrix.length; i++) {
+            // 範囲外参照を防ぐ
+            if (i < rows.length) {
             System.out.printf("%-8s", rows[i]);
+            } else {
+                System.out.printf("%-8s", "ROW" + i);
+            }
+
             for (int j = 0; j < matrix[0].length; j++) {
                 System.out.printf("%-14d", matrix[i][j]);
             }
@@ -172,7 +195,11 @@ public class ConstraintBuilder {
 
             // 各行の出力
             for (int i = 0; i < matrix.length; i++) {
+                if (i < rows.length)
                 writer.append(rows[i]).append(",");
+                else
+                    writer.append("ROW").append(String.valueOf(i)).append(",");
+
                 for (int j = 0; j < matrix[i].length; j++) {
                     writer.append(String.valueOf(matrix[i][j]));
                     if (j < matrix[i].length - 1)
