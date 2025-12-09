@@ -1,7 +1,9 @@
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class DancingLinks {
@@ -97,7 +99,17 @@ public class DancingLinks {
 
     private ColumnNode header;
     private List<Node> answer;
-    private List<List<Node>> allSolutions = new ArrayList<>(); // 全解を保存
+    private List<List<Node>> allSolutions = new ArrayList<>();
+    private List<Integer> blanks; // 空白セルのリスト（相対→絶対変換用）
+
+    public DancingLinks(int[][] grid, int[] constraint) {
+        header = makeDLXBoard(grid, constraint);
+    }
+
+    // 空白セルリストを設定（セルインデックス変換用）
+    public void setBlanks(List<Integer> blanks) {
+        this.blanks = new ArrayList<>(blanks);
+    }
 
     // Algorithm X (全解列挙版)
     private void knuthsAlgorithmX(int k) {
@@ -192,46 +204,53 @@ public class DancingLinks {
         return headerNode;
     }
 
-    public DancingLinks(int[][] grid, int[] constraint) {
-        header = makeDLXBoard(grid, constraint);
-    }
-
     public void runSolver() {
         answer = new LinkedList<Node>();
         allSolutions.clear();
         knuthsAlgorithmX(0);
     }
 
-    // 全解で共通するセルのみを返す
-    public Set<Integer> getDeducedCells() {
+    /**
+     * 全解で状態（Safe/Mine）まで一致するセルのみを返す
+     * 
+     * @return Map<絶対セルインデックス, 状態(0=Safe, 1=Mine)>
+     */
+    public Map<Integer, Integer> getDeducedState() {
         if (allSolutions.isEmpty()) {
-            return new HashSet<>();
+            return new HashMap<>();
         }
 
-        // 最初の解のセルを取得
-        Set<Integer> commonCells = new HashSet<>();
+        // 1. 全解で共通して選択されている「行ID」を抽出
+        Set<Integer> commonRows = new HashSet<>();
         for (Node n : allSolutions.get(0)) {
-            int blankIdx = n.Row / 2; // blanksリスト内のインデックス
-            if (blanks != null && blankIdx < blanks.size()) {
-                int cellIdx = blanks.get(blankIdx); // 実際の盤面上のセルインデックス
-                commonCells.add(cellIdx);
-            }
+            commonRows.add(n.Row);
         }
 
-        // 他の解と共通するセルのみを残す
+        // 2. 他のすべての解と共通集合をとる
         for (int i = 1; i < allSolutions.size(); i++) {
-            Set<Integer> currentCells = new HashSet<>();
+            Set<Integer> currentRows = new HashSet<>();
             for (Node n : allSolutions.get(i)) {
-                int blankIdx = n.Row / 2;
-                if (blanks != null && blankIdx < blanks.size()) {
-                    int cellIdx = blanks.get(blankIdx);
-                    currentCells.add(cellIdx);
-                }
+                currentRows.add(n.Row);
             }
-            commonCells.retainAll(currentCells);
+            commonRows.retainAll(currentRows);
         }
 
-        return commonCells;
+        // 3. 共通行を <絶対セルIndex, 値> のマップに変換
+        Map<Integer, Integer> deduced = new HashMap<>();
+        for (int row : commonRows) {
+            // 相対インデックス（blanks内の位置）
+            int relativeIdx = row / 2;
+            // 状態: 偶数行=Safe(0), 奇数行=Mine(1)
+            int state = row % 2;
+
+            // 絶対インデックスに変換
+            if (blanks != null && relativeIdx >= 0 && relativeIdx < blanks.size()) {
+                int absoluteIdx = blanks.get(relativeIdx);
+                deduced.put(absoluteIdx, state);
+            }
+        }
+
+        return deduced;
     }
 
     // 解の数を返す
@@ -254,12 +273,15 @@ public class DancingLinks {
 
     public void showAnswer() {
         System.out.println("--- Found " + allSolutions.size() + " solution(s) ---");
-        for (int s = 0; s < allSolutions.size(); s++) {
+        for (int s = 0; s < Math.min(allSolutions.size(), 5); s++) {
             System.out.print("Solution " + (s + 1) + ": ");
             for (Node n : allSolutions.get(s)) {
                 System.out.print(n.Row + " ");
             }
             System.out.println();
+        }
+        if (allSolutions.size() > 5) {
+            System.out.println("... and " + (allSolutions.size() - 5) + " more solutions");
         }
     }
 }
