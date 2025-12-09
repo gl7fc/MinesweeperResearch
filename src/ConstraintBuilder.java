@@ -91,37 +91,37 @@ public class ConstraintBuilder {
 
         // 空白セルがない場合は処理をスキップ
         if (blankCount > 0) {
-        // セル制約部分
-        for (int i = 0; i < blankCount; i++) {
-            matrix[i * 2][i] = 1; // #0
-            matrix[i * 2 + 1][i] = 1; // #1
-            constraint[i] = 1; // 制約配列は常に1
-        }
-
-        // 地雷数制約部分
-        for (int i = 0; i < hintCount; i++) {
-            int hintIdx = hintCells.get(i); // ヒントのセル番号
-            int hintValue = board[hintIdx]; // ヒントの値
-            int col = blankCount + i * 2;
-            int bCount = 0;
-
-            // 周囲8セルの番号を取得
-            List<Integer> neighbors = getNeighbors(hintIdx);
-            for (int nb : neighbors) {
-                // 周囲8セルのうち空白のセルについて処理
-                if (board[nb] == -1) {
-                    int idx = blanks.indexOf(nb);
-                    if (idx != -1) {
-                        matrix[idx * 2][col] = 1;
-                        matrix[idx * 2 + 1][col + 1] = 1;
-                        bCount++; // 空白セルの数をカウント
-                    }
-                }
+            // セル制約部分
+            for (int i = 0; i < blankCount; i++) {
+                matrix[i * 2][i] = 1; // #0
+                matrix[i * 2 + 1][i] = 1; // #1
+                constraint[i] = 1; // 制約配列は常に1
             }
 
-            constraint[col] = bCount - hintValue;
-            constraint[col + 1] = hintValue;
-        }
+            // 地雷数制約部分
+            for (int i = 0; i < hintCount; i++) {
+                int hintIdx = hintCells.get(i); // ヒントのセル番号
+                int hintValue = board[hintIdx]; // ヒントの値
+                int col = blankCount + i * 2;
+                int bCount = 0;
+
+                // 周囲8セルの番号を取得
+                List<Integer> neighbors = getNeighbors(hintIdx);
+                for (int nb : neighbors) {
+                    // 周囲8セルのうち空白のセルについて処理
+                    if (board[nb] == -1) {
+                        int idx = blanks.indexOf(nb);
+                        if (idx != -1) {
+                            matrix[idx * 2][col] = 1;
+                            matrix[idx * 2 + 1][col + 1] = 1;
+                            bCount++; // 空白セルの数をカウント
+                        }
+                    }
+                }
+
+                constraint[col] = bCount - hintValue;
+                constraint[col + 1] = hintValue;
+            }
         }
 
         return new Data(matrix, constraint, blankCount);
@@ -166,7 +166,7 @@ public class ConstraintBuilder {
         for (int i = 0; i < matrix.length; i++) {
             // 範囲外参照を防ぐ
             if (i < rows.length) {
-            System.out.printf("%-8s", rows[i]);
+                System.out.printf("%-8s", rows[i]);
             } else {
                 System.out.printf("%-8s", "ROW" + i);
             }
@@ -196,7 +196,7 @@ public class ConstraintBuilder {
             // 各行の出力
             for (int i = 0; i < matrix.length; i++) {
                 if (i < rows.length)
-                writer.append(rows[i]).append(",");
+                    writer.append(rows[i]).append(",");
                 else
                     writer.append("ROW").append(String.valueOf(i)).append(",");
 
