@@ -99,10 +99,9 @@ public class DancingLinks {
     private List<Node> answer;
     private List<List<Node>> allSolutions = new ArrayList<>(); // 全解を保存
 
-    // Algorithm X
-    // k: 再帰の深さ
+    // Algorithm X (全解列挙版)
     private void knuthsAlgorithmX(int k) {
-        // 不要列(制約が0の列, 1が1つも残っていない列)を消す
+        // 不要列を消す
         for (Node r = header.R; r != header; r = r.R) {
             if (r.Col.constraint == 0) {
                 r.Col.cover();
@@ -212,16 +211,22 @@ public class DancingLinks {
         // 最初の解のセルを取得
         Set<Integer> commonCells = new HashSet<>();
         for (Node n : allSolutions.get(0)) {
-            int cellIdx = n.Row / 2;
-            commonCells.add(cellIdx);
+            int blankIdx = n.Row / 2; // blanksリスト内のインデックス
+            if (blanks != null && blankIdx < blanks.size()) {
+                int cellIdx = blanks.get(blankIdx); // 実際の盤面上のセルインデックス
+                commonCells.add(cellIdx);
+            }
         }
 
         // 他の解と共通するセルのみを残す
         for (int i = 1; i < allSolutions.size(); i++) {
             Set<Integer> currentCells = new HashSet<>();
             for (Node n : allSolutions.get(i)) {
-                int cellIdx = n.Row / 2;
-                currentCells.add(cellIdx);
+                int blankIdx = n.Row / 2;
+                if (blanks != null && blankIdx < blanks.size()) {
+                    int cellIdx = blanks.get(blankIdx);
+                    currentCells.add(cellIdx);
+                }
             }
             commonCells.retainAll(currentCells);
         }
