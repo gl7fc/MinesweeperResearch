@@ -28,19 +28,23 @@ public class HintDifficultySolver {
         H = hints.size();
     }
 
-    // メイン処理
-    // ヒント集合のすべての部分集合についてその部分集合から推論できるセルを特定
+    /** メイン処理 */
     public void solve() {
         // 部分集合のサイズ k を 1 から H まで増やす
-        for (int k = 1; k <= 1; k++) {
-            List<List<Integer>> subsets = enumerateSubsetsOfSizeK(hints, k); // 大きさkの部分集合を列挙
-            System.out.println(subsets);
+        for (int k = 1; k <= H; k++) {
+            System.out.println("\n=== k=" + k + " のヒント部分集合を試行中 ===");
+            List<List<Integer>> subsets = enumerateSubsetsOfSizeK(hints, k);
+            System.out.println("部分集合の数: " + subsets.size());
 
+            int subsetCount = 0;
             for (List<Integer> subset : subsets) {
+                subsetCount++;
+                if (subsetCount % 100 == 0) {
+                    System.out.println("  処理中: " + subsetCount + "/" + subsets.size());
+                }
+
                 // --- 部分集合から ECP 行列を構築 --------------------------
                 int[] copyOfBoard = Arrays.copyOf(board, board.length);
-                int[][] grid; // 制約行列
-                int[] constraint; // 制約配列
 
                 // subset にないヒントを無効化
                 for (int h : hints) {
@@ -51,11 +55,10 @@ public class HintDifficultySolver {
 
                 // subset に含まれるヒントの周囲セル以外の空白セルを無効化
                 Set<Integer> neighborBlanks = new HashSet<>();
-                // subset に含まれるヒントの周囲セルの空白セルを集める
                 for (int h : subset) {
-                    List<Integer> neighbors = getNeighbors(h); // 盤面サイズに応じて隣接セルを取得
+                    List<Integer> neighbors = getNeighbors(h);
                     for (int nb : neighbors) {
-                        if (board[nb] == -1) { // 空白セルのみ
+                        if (board[nb] == -1) {
                             neighborBlanks.add(nb);
                         }
                     }
@@ -64,64 +67,59 @@ public class HintDifficultySolver {
                 // 隣接していない空白セルを無効化
                 for (int b : blanks) {
                     if (!neighborBlanks.contains(b)) {
-                        copyOfBoard[b] = -2; // 無効化
+                        copyOfBoard[b] = -2;
                     }
                 }
 
-                // --- 現在有効なセルのみからDLXで推論 --------------------
-                ConstraintBuilder builder = new ConstraintBuilder(copyOfBoard, size);
+                try {
+                    ConstraintBuilder builder = new ConstraintBuilder(copyOfBoard, size);
+                    ConstraintBuilder.Data data = builder.buildConstraints();
 
-                // builder.enableOnlyHints(subset);
-                builder.buildConstraints();
-
-                ConstraintBuilder.Data data = builder.buildConstraints();
-
-                grid = data.matrix;
-                constraint = data.constraint;
-
-                // --- 表示 --------------------
-                // System.out.println("=== 制約行列 ===");
-                // builder.printMatrixWithLabels(data.matrix);
-
-                // System.out.println("=== 制約配列 ===");
-                // for (int v : data.constraint)
-                // System.out.print(v + " ");
-                // System.out.println("");
-
-                // --- DLXを実行して推論可能セルを取り出す --------------------
-                DancingLinks dlx = new DancingLinks(grid, constraint);
-                // List<Integer> deduced = dlx.solveAndGetDeducedCells();
-                // System.out.println(deduced);
-
-                dlx.runSolver();
-
-                // --- DLXの解答をセル番号に変換, --------------------
-                int[] solvedRows = dlx.getAnswer();
-                Set<Integer> deduced = new HashSet<>();
-                for (int r : solvedRows) {
-                    int cellIdx = r / 2; // ConstraintBuilder の行が空白セル2行分なので /2 でインデックスに変換
-                    if (board[cellIdx] == -1)
-                        deduced.add(cellIdx); // 推論済みにする
-                }
-
-                System.out.println(deduced);
-
-                // --- 推論できるセルを必要ヒント数 k でマーク ----------------
-                boolean updated = false;
-                for (int c : deduced) {
-                    if (!solved[c]) {
-                        solved[c] = true;
-                        needHints[c] = k;
-                        updated = true;
+                    // 制約行列が空の場合はスキップ
+                    if (data.matrix.length == 0 || data.matrix[0].length == 0) {
+                        continue;
                     }
-                }
 
-                // 全セル推論済みなら終了
-                if (countUnsolved() == 0) {
-                    return;
+                    // --- DLXを実行して推論可能セルを取り出す --------------------
+                    DancingLinks dlx = new DancingLinks(data.matrix, data.constraint);
+                    dlx.runSolver();
+
+                    int[] solvedRows = dlx.getAnswer();
+                    Set<Integer> deduced = new HashSet<>();
+
+                    for (int r : solvedRows) {
+                        int cellIdx = r / 2;
+                        if (cellIdx >= 0 && cellIdx < board.length && board[cellIdx] == -1) {
+                            deduced.add(cellIdx);
+                        }
+                    }
+
+                    // --- 推論できるセルを必要ヒント数 k でマーク ----------------
+                    for (int c : deduced) {
+                        if (!solved[c]) {
+                            solved[c] = true;
+                            needHints[c] = k;
+                            System.out.println("  セル " + c + " を k=" + k + " で推論");
+                        }
+                    }
+
+                } catch (Exception e) {
+                    // DLXでエラーが発生した場合はスキップ
+                    System.err.println("  エラー発生: " + e.getMessage());
+                    continue;
                 }
             }
+
+            // 全セル推論済みなら終了
+            if (countUnsolved() == 0) {
+                System.out.println("\n全セル推論完了!");
+                return;
+            }
+
+            System.out.println("未推論セル数: " + countUnsolved());
         }
+
+        System.out.println("\n全ヒントを使っても推論できないセルが残っています。");
     }
 
     // -------------------------------------------------------------
@@ -131,13 +129,15 @@ public class HintDifficultySolver {
     // まだ推論済みでない空白セルを数える
     int countUnsolved() {
         int count = 0;
-        for (boolean b : solved) // solved配列を巡回
-            if (!b)
+        for (int i = 0; i < board.length; i++) {
+            if (board[i] == -1 && !solved[i]) {
                 count++;
+            }
+        }
         return count;
     }
 
-    // ヒント集合からサイズ k の部分集合を列挙（辞書順）
+    /** ヒント集合からサイズ k の部分集合を列挙（辞書順） */
     public static <T> List<List<T>> enumerateSubsetsOfSizeK(List<T> list, int k) {
         List<List<T>> res = new ArrayList<>();
         backtrack(list, k, 0, new ArrayList<>(), res);
@@ -180,5 +180,40 @@ public class HintDifficultySolver {
     // -------------------------------------------------------------
     public int[] getHintRequired() {
         return needHints;
+    }
+
+    // デバッグ用: 盤面を視覚的に表示
+    public void printBoard() {
+        System.out.println("\n=== 盤面 ===");
+        for (int r = 0; r < size; r++) {
+            for (int c = 0; c < size; c++) {
+                int idx = r * size + c;
+                int val = board[idx];
+                if (val == -1) {
+                    System.out.print(" . ");
+                } else {
+                    System.out.print(" " + val + " ");
+                }
+            }
+            System.out.println();
+        }
+
+        System.out.println("\n=== 必要ヒント数 ===");
+        for (int r = 0; r < size; r++) {
+            for (int c = 0; c < size; c++) {
+                int idx = r * size + c;
+                if (board[idx] == -1) {
+                    int need = needHints[idx];
+                    if (need == -1) {
+                        System.out.print(" ? ");
+                    } else {
+                        System.out.print(" " + need + " ");
+                    }
+                } else {
+                    System.out.print(" " + board[idx] + " ");
+                }
+            }
+            System.out.println();
+        }
     }
 }
