@@ -95,7 +95,7 @@ public class HintDifficultySolver {
 
                 dlx.runSolver();
 
-                // --- DLXの解答をセル番号に変換, そのセルを推論済みにする --------------------
+                // --- DLXの解答をセル番号に変換, --------------------
                 int[] solvedRows = dlx.getAnswer();
                 Set<Integer> deduced = new HashSet<>();
                 for (int r : solvedRows) {
