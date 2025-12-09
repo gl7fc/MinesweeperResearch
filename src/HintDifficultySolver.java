@@ -28,13 +28,13 @@ public class HintDifficultySolver {
         H = hints.size();
     }
 
-    // メイン処理
-    // ヒント集合のすべての部分集合についてその部分集合から推論できるセルを特定
+    /** メイン処理 */
     public void solve() {
         // 部分集合のサイズ k を 1 から H まで増やす
-        for (int k = 1; k <= 1; k++) {
-            List<List<Integer>> subsets = enumerateSubsetsOfSizeK(hints, k); // 大きさkの部分集合を列挙
-            System.out.println(subsets);
+        for (int k = 1; k <= H; k++) {
+            System.out.println("\n=== k=" + k + " のヒント部分集合を試行中 ===");
+            List<List<Integer>> subsets = enumerateSubsetsOfSizeK(hints, k);
+            System.out.println("部分集合の数: " + subsets.size());
 
             int subsetCount = 0;
             for (List<Integer> subset : subsets) {
@@ -55,11 +55,10 @@ public class HintDifficultySolver {
 
                 // subset に含まれるヒントの周囲セル以外の空白セルを無効化
                 Set<Integer> neighborBlanks = new HashSet<>();
-                // subset に含まれるヒントの周囲セルの空白セルを集める
                 for (int h : subset) {
-                    List<Integer> neighbors = getNeighbors(h); // 盤面サイズに応じて隣接セルを取得
+                    List<Integer> neighbors = getNeighbors(h);
                     for (int nb : neighbors) {
-                        if (board[nb] == -1) { // 空白セルのみ
+                        if (board[nb] == -1) {
                             neighborBlanks.add(nb);
                         }
                     }
@@ -68,7 +67,7 @@ public class HintDifficultySolver {
                 // 隣接していない空白セルを無効化
                 for (int b : blanks) {
                     if (!neighborBlanks.contains(b)) {
-                        copyOfBoard[b] = -2; // 無効化
+                        copyOfBoard[b] = -2;
                     }
                 }
 
@@ -85,19 +84,16 @@ public class HintDifficultySolver {
                     DancingLinks dlx = new DancingLinks(data.matrix, data.constraint);
                     dlx.runSolver();
 
-                    // --- DLXの解答をセル番号に変換, --------------------
-                    int[] solvedRows = dlx.getAnswer();
-                    Set<Integer> deduced = new HashSet<>();
+                    // 全解で共通するセルのみを推論可能とする
+                    Set<Integer> deduced = dlx.getDeducedCells();
 
-                    for (int r : solvedRows) {
-                        int cellIdx = r / 2;
-                        if (cellIdx >= 0 && cellIdx < board.length && board[cellIdx] == -1) {
-                            deduced.add(cellIdx);
-                        }
+                    // デバッグ: 解の数を表示
+                    int solutionCount = dlx.getSolutionCount();
+                    if (solutionCount > 1 && deduced.size() > 0) {
+                        System.out.println("    解が" + solutionCount + "個あり、" + deduced.size() + "セル確定");
                     }
 
                     // --- 推論できるセルを必要ヒント数 k でマーク ----------------
-                    boolean updated = false;
                     for (int c : deduced) {
                         if (!solved[c]) {
                             solved[c] = true;
