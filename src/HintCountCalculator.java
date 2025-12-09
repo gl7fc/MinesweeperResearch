@@ -8,6 +8,9 @@ public class HintCountCalculator {
     private static final int FLAGGED = -3; // 地雷確定 (定数として扱う)
     // HINTは 0以上 の整数
 
+    // ★デバッグ出力を制御するフラグ
+    private boolean debugMode = true;
+
     private int[] currentBoard; // 現在の推論用盤面
     private final int[] completeBoard; // 正解盤面 (答え合わせ・更新用)
     private final int size;
@@ -34,13 +37,16 @@ public class HintCountCalculator {
     /** メイン処理: 難易度解析を実行 */
     public void calculate() {
         // k=1 から最大ヒント数(あるいは適当な上限)までループ
-        // ※今回は設計通り、途中で解けても k は戻さない
-        int maxK = 1; // 通常のマインスイーパならこの程度で十分
+        int maxK = 8;
 
         for (int k = 1; k <= maxK; k++) {
             // 全セルが解けていれば早期終了
             if (isAllSolved())
                 break;
+
+            if (debugMode) {
+                System.out.println("\n=== Round k=" + k + " Start ===");
+            }
 
             // このラウンドを実行
             executeRound(k);
@@ -116,6 +122,12 @@ public class HintCountCalculator {
             }
         }
 
+        // ★デバッグ出力: ノイズ除去後の盤面を表示
+        if (debugMode) {
+            System.out.println("\n--- Debug: Local Board for subset " + subset + " ---");
+            printDebugBoard(tempBoard);
+        }
+
         // 3. DLX実行
         // ConstraintBuilder側で FLAGGED の処理と IGNORE の処理を行う
         ConstraintBuilder builder = new ConstraintBuilder(tempBoard, size);
@@ -144,6 +156,9 @@ public class HintCountCalculator {
 
                 if (predictedMine == actuallyMine) {
                     result.add(cellIdx);
+                    if (debugMode) {
+                        System.out.println("  -> Solved! Cell " + cellIdx + " is " + (actuallyMine ? "MINE" : "SAFE"));
+                    }
                 }
             }
         }
@@ -253,5 +268,25 @@ public class HintCountCalculator {
     // 結果取得
     public int[] getDifficultyMap() {
         return difficultyMap;
+    }
+
+    // ★デバッグ用: 盤面表示
+    private void printDebugBoard(int[] board) {
+        for (int i = 0; i < board.length; i++) {
+            int val = board[i];
+            if (val == IGNORE) {
+                System.out.print("   "); // 無視は見やすく空白で
+            } else if (val == FLAGGED) {
+                System.out.print(" F "); // 地雷確定
+            } else if (val == UNKNOWN) {
+                System.out.print(" ? "); // 推論対象
+            } else {
+                System.out.printf(" %d ", val); // 数字
+            }
+
+            if ((i + 1) % size == 0) {
+                System.out.println();
+            }
+        }
     }
 }
