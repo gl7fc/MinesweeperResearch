@@ -1,6 +1,8 @@
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 
 // 制約行列 → DLXで解く
 public class DancingLinks {
@@ -114,13 +116,11 @@ public class DancingLinks {
             relinkLR();
             header.size++; // 列ヘッダの数を1増やす
         }
-
     }
 
     private ColumnNode header; // 列ヘッダをまとめるノード
     private List<Node> answer; // 解答を保存するリスト
-    private int solutionsCount = 0;
-    private List<Node> finalAnswer = new ArrayList<>(); // 最終結果を保存するリスト
+    private List<Node> allSolutions = new ArrayList<>(); // 最終結果を保存するリスト
 
     // Algorithm X
     // k: 再帰の深さ
@@ -134,22 +134,17 @@ public class DancingLinks {
 
         // 1. 行列が空である場合は問題が解けたので終了
         if (header.R == header) {
-            solutionsCount++;
-            finalAnswer = new ArrayList<>(answer);
+            allSolutions.add(new ArrayList<>(answer)); // 解を保存
+            return; // continue searching by returning
+        }
+
+        ColumnNode c = selectColumnNode();
+        if (c == null)
             return;
-        } else {
-            // 2. その列に含まれる1の数(ノード数)が最も少ない列cを選択・削除
-            ColumnNode c = selectColumnNode();
 
-            if (c == null)
-                return;
+        c.cover();
 
-            ColumnNode chosen = c;
-            chosen.cover();
-
-            // 3. X[r][c] = 1 であるようなすべての行rについて
-            for (Node r = chosen.D; r != chosen; r = r.D) {
-                // 3.a. 行rを解の候補として記録
+        for (Node r = c.D; r != c; r = r.D) {
                 answer.add(r);
 
                 // 3.b. X[r][j] = 1 であるようなすべての列jについて
@@ -181,9 +176,8 @@ public class DancingLinks {
                     j.Col.covered--;
                 }
             }
-            // バックトラック
-            chosen.uncover();
-        }
+
+        c.uncover();
     }
 
     // 属しているノード数の少ない列を探索
@@ -268,31 +262,63 @@ public class DancingLinks {
     public void runSolver() {
         // 解答用のリストをインスタンス化
         answer = new LinkedList<Node>();
-        // Knuth's Algorithm Xの実行
+        allSolutions.clear();
         knuthsAlgorithmX(0);
     }
 
-    // 解答の行を配列で返す
+    // 全解で共通するセル(確定するセル)のみを返す
+    public Set<Integer> getDeducedCells() {
+        if (allSolutions.isEmpty()) {
+            return new HashSet<>();
+        }
+
+        // 最初の解のセルを取得
+        Set<Integer> commonCells = new HashSet<>();
+        for (Node n : allSolutions.get(0)) {
+            int cellIdx = n.Row / 2;
+            commonCells.add(cellIdx);
+        }
+
+        // 他の解と共通するセルのみを残す
+        for (int i = 1; i < allSolutions.size(); i++) {
+            Set<Integer> currentCells = new HashSet<>();
+            for (Node n : allSolutions.get(i)) {
+                int cellIdx = n.Row / 2;
+                currentCells.add(cellIdx);
+            }
+            commonCells.retainAll(currentCells);
+        }
+
+        return commonCells;
+    }
+
+    // 解の数を返す
+    public int getSolutionCount() {
+        return allSolutions.size();
+    }
+
+    // 最初の解の行を配列で返す (既存の互換性のため)
     public int[] getAnswer() {
-        int[] ans = new int[finalAnswer.size()];
-        for (int i = 0; i < finalAnswer.size(); i++) {
-            ans[i] = finalAnswer.get(i).Row;
+        if (allSolutions.isEmpty()) {
+            return new int[0];
+        }
+        List<Node> firstSolution = allSolutions.get(0);
+        int[] ans = new int[firstSolution.size()];
+        for (int i = 0; i < firstSolution.size(); i++) {
+            ans[i] = firstSolution.get(i).Row;
         }
         return ans;
     }
 
     // 解を表示
     public void showAnswer() {
-        System.out.println("--- Solved ---");
-        for (int i = 0; i < answer.size(); i++) {
-            System.out.print(answer.get(i).Row + " ");
-        }
-        System.out.println("");
-        System.out.println("");
+        System.out.println("--- Found " + allSolutions.size() + " solution(s) ---");
+        for (int s = 0; s < allSolutions.size(); s++) {
+            System.out.print("Solution " + (s + 1) + ": ");
+            for (Node n : allSolutions.get(s)) {
+                System.out.print(n.Row + " ");
     }
-
-    // 解の個数
-    public int SolutionsCount(int blanks) {
-        return solutionsCount;
+            System.out.println();
+        }
     }
 }
