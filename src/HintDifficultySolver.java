@@ -82,27 +82,38 @@ public class HintDifficultySolver {
 
                     // --- DLXを実行して推論可能セルを取り出す --------------------
                     DancingLinks dlx = new DancingLinks(data.matrix, data.constraint);
+
+                    // 有効な空白セルのリストを取得（-2でないもの）
+                    List<Integer> activeBlanks = new ArrayList<>();
+                    for (int b : blanks) {
+                        if (copyOfBoard[b] == -1) {
+                            activeBlanks.add(b);
+                        }
+                    }
+                    dlx.setBlanks(activeBlanks); // DLXに空白セルリストを渡す
+
                     dlx.runSolver();
 
-                    // 全解で共通するセルのみを推論可能とする
-                    Set<Integer> deduced = dlx.getDeducedCells();
+                    // 全解で状態まで一致するセルを取得
+                    Map<Integer, Integer> deducedState = dlx.getDeducedState();
 
                     // デバッグ: 解の数を表示
                     int solutionCount = dlx.getSolutionCount();
-                    if (solutionCount > 1 && deduced.size() > 0) {
-                        System.out.println("    解が" + solutionCount + "個あり、" + deduced.size() + "セル確定");
-                    }
 
                     // --- 推論できるセルを必要ヒント数 k でマーク ----------------
-                    for (int c : deduced) {
-                        if (!solved[c]) {
-                            solved[c] = true;
-                            needHints[c] = k;
-                            cellToHints.put(c, new ArrayList<>(subset));
+                    for (Map.Entry<Integer, Integer> entry : deducedState.entrySet()) {
+                        int cellIdx = entry.getKey();
+                        int state = entry.getValue();
+
+                        if (!solved[cellIdx]) {
+                            solved[cellIdx] = true;
+                            needHints[cellIdx] = k;
+                            cellToHints.put(cellIdx, new ArrayList<>(subset));
 
                             // ヒント位置を座標形式で表示
-                            System.out.print("  セル(" + (c / size) + "," + (c % size) + ") を推論 <- ");
-                            System.out.print("ヒント[");
+                            System.out.print("  セル(" + (cellIdx / size) + "," + (cellIdx % size) + ")");
+                            System.out.print(state == 1 ? "[地雷]" : "[安全]");
+                            System.out.print(" を推論 <- ヒント[");
                             for (int i = 0; i < subset.size(); i++) {
                                 int h = subset.get(i);
                                 System.out.print("(" + (h / size) + "," + (h % size) + ")=" + board[h]);
