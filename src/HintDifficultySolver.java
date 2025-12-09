@@ -10,6 +10,9 @@ public class HintDifficultySolver {
     List<Integer> blanks = new ArrayList<>(); // 空白セルのインデックス
     List<Integer> hints = new ArrayList<>(); // ヒントセルのインデックス
 
+    // どのヒント集合からどのセルが推論されたかを記録
+    Map<Integer, List<Integer>> cellToHints = new HashMap<>();
+
     public HintDifficultySolver(int[] board, int size) {
         this.board = board;
         this.size = size;
@@ -39,9 +42,6 @@ public class HintDifficultySolver {
             int subsetCount = 0;
             for (List<Integer> subset : subsets) {
                 subsetCount++;
-                if (subsetCount % 100 == 0) {
-                    System.out.println("  処理中: " + subsetCount + "/" + subsets.size());
-                }
 
                 // --- 部分集合から ECP 行列を構築 --------------------------
                 int[] copyOfBoard = Arrays.copyOf(board, board.length);
@@ -98,27 +98,39 @@ public class HintDifficultySolver {
                         if (!solved[c]) {
                             solved[c] = true;
                             needHints[c] = k;
-                            System.out.println("  セル " + c + " を k=" + k + " で推論");
+                            cellToHints.put(c, new ArrayList<>(subset));
+
+                            // ヒント位置を座標形式で表示
+                            System.out.print("  セル(" + (c / size) + "," + (c % size) + ") を推論 <- ");
+                            System.out.print("ヒント[");
+                            for (int i = 0; i < subset.size(); i++) {
+                                int h = subset.get(i);
+                                System.out.print("(" + (h / size) + "," + (h % size) + ")=" + board[h]);
+                                if (i < subset.size() - 1)
+                                    System.out.print(", ");
+                            }
+                            System.out.println("]  (解の数: " + solutionCount + ")");
                         }
                     }
 
                 } catch (Exception e) {
                     // DLXでエラーが発生した場合はスキップ
                     System.err.println("  エラー発生: " + e.getMessage());
+                    e.printStackTrace();
                     continue;
                 }
             }
 
             // 全セル推論済みなら終了
             if (countUnsolved() == 0) {
-                System.out.println("\n全セル推論完了!");
+                System.out.println("\n✅ 全セル推論完了!");
                 return;
             }
 
             System.out.println("未推論セル数: " + countUnsolved());
         }
 
-        System.out.println("\n全ヒントを使っても推論できないセルが残っています。");
+        System.out.println("\n⚠️ 全ヒントを使っても推論できないセルが残っています。");
     }
 
     // -------------------------------------------------------------
@@ -213,6 +225,25 @@ public class HintDifficultySolver {
                 }
             }
             System.out.println();
+        }
+
+        System.out.println("\n=== 推論の詳細 ===");
+        for (int r = 0; r < size; r++) {
+            for (int c = 0; c < size; c++) {
+                int idx = r * size + c;
+                if (board[idx] == -1 && cellToHints.containsKey(idx)) {
+                    System.out.print("セル(" + r + "," + c + ") <- ");
+                    List<Integer> hintList = cellToHints.get(idx);
+                    System.out.print("[");
+                    for (int i = 0; i < hintList.size(); i++) {
+                        int h = hintList.get(i);
+                        System.out.print("(" + (h / size) + "," + (h % size) + ")=" + board[h]);
+                        if (i < hintList.size() - 1)
+                            System.out.print(", ");
+                    }
+                    System.out.println("]");
+                }
+            }
         }
     }
 }
