@@ -5,6 +5,12 @@ import java.util.List;
 
 // 盤面の1次元配列 → 制約行列・制約配列
 public class ConstraintBuilder {
+
+    // 定数定義 (HintCountCalculatorと合わせる)
+    private static final int MINE = -1; // 未確定 (変数候補)
+    private static final int IGNORE = -2; // 計算対象外
+    private static final int FLAGGED = -3; // 地雷確定 (定数)
+
     // 制約行列と制約配列を返す用のクラス
     public class Data {
         public int[][] matrix;
@@ -37,10 +43,18 @@ public class ConstraintBuilder {
     // 空白セルとヒントセルを探索してリスト化
     private void findCells() {
         for (int i = 0; i < board.length; i++) {
-            if (board[i] == -1) {
-                blanks.add(i); // 空白セル
-            } else {
-                hintCells.add(i); // ヒントセル
+            int val = board[i];
+
+            // IGNORE(-2) と FLAGGED(-3) はリストに入れない
+            // FLAGGEDは周囲チェック時に参照される
+            if (val == IGNORE || val == FLAGGED) {
+                continue;
+            }
+
+            if (val == MINE) {
+                blanks.add(i); // 変数
+            } else if (val >= 0) {
+                hintCells.add(i); // ヒント
             }
         }
     }
@@ -65,52 +79,72 @@ public class ConstraintBuilder {
 
     // 制約行列・制約配列を生成
     public Data buildConstraints() {
-        int blankCount = blanks.size(); // 空白セルの個数
-        int hintCount = hintCells.size(); // ヒントセルの個数
+        int blankCount = blanks.size();
+        int hintCount = hintCells.size();
 
-        int totalRows = blankCount * 2; // 制約行列の行数
-        int totalCols = blankCount + hintCount * 2; // 制約行列の列数
+        int totalRows = blankCount * 2;
+        int totalCols = blankCount + hintCount * 2;
+
+        if (totalRows == 0)
+            totalRows = 1;
+        if (totalCols == 0)
+            totalCols = 1;
 
         int[][] matrix = new int[totalRows][totalCols];
         int[] constraint = new int[totalCols];
 
-        // セル制約部分
-        for (int i = 0; i < blankCount; i++) {
-            matrix[i * 2][i] = 1; // #0
-            matrix[i * 2 + 1][i] = 1; // #1
-            constraint[i] = 1; // 制約配列は常に1
-        }
-
-        // 地雷数制約部分
-        for (int i = 0; i < hintCount; i++) {
-            int hintIdx = hintCells.get(i); // ヒントのセル番号
-            int hintValue = board[hintIdx]; // ヒントの値
-            int col = blankCount + i * 2;
-            int bCount = 0;
-
-            // 周囲8セルの番号を取得
-            List<Integer> neighbors = getNeighbors(hintIdx);
-            for (int nb : neighbors) {
-                // 周囲8セルのうち空白のセルについて処理
-                if (board[nb] == -1) {
-                    int idx = blanks.indexOf(nb);
-                    if (idx != -1) {
-                        matrix[idx * 2][col] = 1;
-                        matrix[idx * 2 + 1][col + 1] = 1;
-                        bCount++; // 空白セルの数をカウント
-                    }
-                }
+        if (blankCount > 0) {
+            // 変数制約 (各空白は0か1のどちらか)
+            for (int i = 0; i < blankCount; i++) {
+                matrix[i * 2][i] = 1;
+                matrix[i * 2 + 1][i] = 1;
+                constraint[i] = 1;
             }
 
-            constraint[col] = bCount - hintValue;
-            constraint[col + 1] = hintValue;
+            // ヒント制約
+            for (int i = 0; i < hintCount; i++) {
+                int hintIdx = hintCells.get(i);
+                int effectiveHintValue = board[hintIdx]; // ヒントの値
+
+                int col = blankCount + i * 2;
+                int variableCount = 0; // 周囲の変数(空白)数
+
+                // 周囲8セルの番号を取得
+                List<Integer> neighbors = getNeighbors(hintIdx);
+                for (int nb : neighbors) {
+                    int neighborVal = board[nb];
+
+                    if (neighborVal == MINE) {
+                        // 変数リストにあるか確認
+                        int idx = blanks.indexOf(nb);
+                        if (idx != -1) {
+                            matrix[idx * 2][col] = 1; // 安全ならこっち
+                            matrix[idx * 2 + 1][col + 1] = 1; // 地雷ならこっち
+                            variableCount++;
+                        }
+                    }
+                    // ★重要: 地雷確定セルがある場合、ヒント値を減らす
+                    else if (neighborVal == FLAGGED) {
+                        effectiveHintValue--;
+                    }
+                    // IGNOREは何もしない
+                }
+
+                if (effectiveHintValue < 0)
+                    effectiveHintValue = 0; // 念のため
+
+                // col: 安全であるべき数 = (変数の総数) - (必要な地雷数)
+                // col+1: 地雷であるべき数 = (必要な地雷数)
+                constraint[col] = variableCount - effectiveHintValue;
+                constraint[col + 1] = effectiveHintValue;
+            }
         }
 
         return new Data(matrix, constraint, blankCount);
 
     }
 
-    // (表示用) 列ラベルを生成
+    // --- 表示用メソッド (既存のまま) ---
     private String[] getColumnLabels() {
         List<String> labels = new ArrayList<>();
         for (int idx : blanks)
@@ -124,7 +158,6 @@ public class ConstraintBuilder {
         return labels.toArray(new String[0]);
     }
 
-    // (表示用) 行ラベルを生成
     public String[] getRowLabels() {
         List<String> labels = new ArrayList<>();
         for (int idx : blanks) {
@@ -147,7 +180,10 @@ public class ConstraintBuilder {
 
         // 行ごとに出力
         for (int i = 0; i < matrix.length; i++) {
-            System.out.printf("%-8s", rows[i]);
+            if (i < rows.length)
+                System.out.printf("%-8s", rows[i]);
+            else
+                System.out.printf("%-8s", "ROW" + i);
             for (int j = 0; j < matrix[0].length; j++) {
                 System.out.printf("%-14d", matrix[i][j]);
             }
