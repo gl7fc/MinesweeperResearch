@@ -1,9 +1,8 @@
 import java.util.Arrays;
-import java.util.Map;
 
 /**
- * Lv.1 テクニック解析テスト用のメインクラス
- * ファイル名: Main_v2.java
+ * マインスイーパ難易度解析 メインクラス
+ * 世代別解析(GenerationSolver) と 必要ヒント数解析(HintCountCalculator) を比較実行する。
  */
 public class Main {
     public static void main(String[] args) {
@@ -19,40 +18,55 @@ public class Main {
         PuzzleMinimizer pm = new PuzzleMinimizer(completeBoard, size);
         int[] puzzleBoard = pm.minimizeHints();
 
-        System.out.println(puzzleBoard);
-
         System.out.println("===== 生成された盤面 (問題) =====");
         PuzzleGenerator.printBoard(puzzleBoard, size);
 
         // ===================================================
+        // 解析1: GenerationSolver (世代別 / テクニック難易度)
+        // ===================================================
+        System.out.println("\n------------------------------------------------");
+        System.out.println("解析1: GenerationSolver (推論テクニック深度)");
+        System.out.println("------------------------------------------------");
+
+        GenerationSolver genSolver = new GenerationSolver(puzzleBoard, completeBoard, size);
+        long startGen = System.currentTimeMillis();
+        genSolver.analyze();
+        long endGen = System.currentTimeMillis();
+
+        int[] genDifficulties = genSolver.getDifficultyMap();
+
+        System.out.println("実行時間: " + (endGen - startGen) + "ms");
+        System.out.println(" [ 0 ]: 見たまま (Gen 0)");
+        System.out.println(" [ 1 ]: 差分・定石 (Gen 1)");
+        System.out.println(" [ 2+]: 連鎖・応用 (Gen 2+)");
+        System.out.println(" [ * ]: このソルバーでは解けない (背理法領域)");
+
+        printAnalysis(puzzleBoard, genDifficulties, size, false);
+
+        // ===================================================
         // 解析2: HintCountCalculator (必要ヒント数 k)
         // ===================================================
-        // System.out.println("\n--- HintCount(k) 難易度解析実行中... ---");
+        System.out.println("\n------------------------------------------------");
+        System.out.println("解析2: HintCountCalculator (必要情報量 k)");
+        System.out.println("------------------------------------------------");
 
-        // puzzle: 問題, board: 正解, size: サイズ
         HintCountCalculator kCalculator = new HintCountCalculator(puzzleBoard, completeBoard, size);
-
-        // 計算実行
+        long startK = System.currentTimeMillis();
         kCalculator.calculate();
+        long endK = System.currentTimeMillis();
 
         // 結果取得
         int[] kDifficulties = kCalculator.getDifficultyMap();
 
-        // ===================================================
-        // 結果表示
-        // ===================================================
-        System.out.println("\n===== 解析結果比較 =====");
+        System.out.println("実行時間: " + (endK - startK) + "ms");
+        System.out.println(" [数字]: 必要ヒント数 (k)");
+        System.out.println(" [ * ]: 論理的に確定不可 (運ゲー)");
 
-        // 2. HintCount(k) の結果
-        System.out.println("\n[HintCount(k) 必要ヒント数]");
-        System.out.println(" [数字]: そのセルを解くのに必要だったヒント数(k)");
-        System.out.println(" [ . ]: 元から表示されていたヒント");
-        System.out.println(" [ * ]: 論理的に確定できなかったセル\n");
-
-        printKAnalysis(puzzleBoard, kDifficulties, size);
+        printAnalysis(puzzleBoard, kDifficulties, size, true);
     }
 
-    private static void printKAnalysis(int[] puzzleBoard, int[] difficulties, int size) {
+    private static void printAnalysis(int[] puzzleBoard, int[] difficulties, int size,
+            boolean showAsteriskForUnsolved) {
         for (int i = 0; i < size * size; i++) {
             // 問題盤面で元々ヒント(0以上)だった場所
             if (puzzleBoard[i] >= 0) {
