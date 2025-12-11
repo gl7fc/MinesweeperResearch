@@ -6,8 +6,8 @@ import java.util.Arrays;
  */
 public class Main {
     public static void main(String[] args) {
-        int size = 5; // 盤面サイズ
-        int bombs = 10; // 地雷数
+        int size = 8; // 盤面サイズ
+        int bombs = 30; // 地雷数
 
         // 1. サイズ・地雷数を指定してランダムなパズルを生成
         int[] completeBoard = PuzzleGenerator.generatePuzzle(size, bombs); // 正解盤面
@@ -20,28 +20,6 @@ public class Main {
 
         System.out.println("===== 生成された盤面 (問題) =====");
         PuzzleGenerator.printBoard(puzzleBoard, size);
-
-        // ===================================================
-        // 解析1: GenerationSolver (世代別 / テクニック難易度)
-        // ===================================================
-        System.out.println("\n------------------------------------------------");
-        System.out.println("解析1: GenerationSolver (推論テクニック深度)");
-        System.out.println("------------------------------------------------");
-
-        GenerationSolver genSolver = new GenerationSolver(puzzleBoard, completeBoard, size);
-        long startGen = System.currentTimeMillis();
-        genSolver.analyze();
-        long endGen = System.currentTimeMillis();
-
-        int[] genDifficulties = genSolver.getDifficultyMap();
-
-        System.out.println("実行時間: " + (endGen - startGen) + "ms");
-        System.out.println(" [ 0 ]: 見たまま (Gen 0)");
-        System.out.println(" [ 1 ]: 差分・定石 (Gen 1)");
-        System.out.println(" [ 2+]: 連鎖・応用 (Gen 2+)");
-        System.out.println(" [ * ]: このソルバーでは解けない (背理法領域)");
-
-        printAnalysis(puzzleBoard, genDifficulties, size, false);
 
         // ===================================================
         // 解析2: HintCountCalculator (必要ヒント数 k)
