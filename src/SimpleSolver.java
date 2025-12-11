@@ -96,7 +96,7 @@ public class SimpleSolver {
     }
 
     // 周囲8セルの座標取得
-    private static List<Integer> getNeighbors(int idx, int size) {
+    private List<Integer> getNeighbors(int idx) {
         List<Integer> list = new ArrayList<>();
         int r = idx / size;
         int c = idx % size;
