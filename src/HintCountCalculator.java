@@ -109,7 +109,7 @@ public class HintCountCalculator {
             // 確定情報を収集 (roundSolvedに追加)
             for (Map.Entry<Integer, Integer> entry : deduced.entrySet()) {
                 int cellIdx = entry.getKey();
-                int determinedVal = entry.getValue();
+                // int determinedVal = entry.getValue();
 
                 // 既にこのラウンドで処理済みでなければ
                 if (!roundSolved.contains(cellIdx)) {

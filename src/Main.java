@@ -1,7 +1,7 @@
 public class Main {
     public static void main(String[] args) {
-        int size = 5;
-        int bombs = 10;
+        int size = 8;
+        int bombs = 40;
         int puzzles = 1;
 
         // サイズ・地雷数を指定してランダムなパズルを生成
