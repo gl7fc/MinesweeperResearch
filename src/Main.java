@@ -21,6 +21,9 @@ public class Main {
         System.out.println("===== 生成された盤面 (問題) =====");
         PuzzleGenerator.printBoard(puzzleBoard, size);
 
+        // ===================================================
+        // 解析2: HintCountCalculator (必要情報量 k)
+        // ===================================================
         System.out.println("\n------------------------------------------------");
         System.out.println("解析: HintCountCalculator (必要ヒント数 k)");
         System.out.println("------------------------------------------------");
@@ -35,13 +38,34 @@ public class Main {
 
         System.out.println("実行時間: " + (endK - startK) + "ms");
         System.out.println(" [数字]: 必要ヒント数 (k)");
-        System.out.println(" [ * ]: 論理的に確定不可 (運ゲー)");
+        System.out.println(" [ * ]: 論理的に確定不可");
 
-        printAnalysis(puzzleBoard, kDifficulties, size, true);
+        printAnalysis(puzzleBoard, kDifficulties, size);
+
+        // ===================================================
+        // 解析3: TechniqueAnalyzer (テクニックレベル判定) - Phase 2
+        // ===================================================
+        System.out.println("\n------------------------------------------------");
+        System.out.println("解析: TechniqueAnalyzer (テクニックレベル判定)");
+        System.out.println("------------------------------------------------");
+
+        TechniqueAnalyzer tAnalyzer = new TechniqueAnalyzer(puzzleBoard, completeBoard, size);
+        long startT = System.currentTimeMillis();
+        tAnalyzer.analyze();
+        long endT = System.currentTimeMillis();
+
+        int[] tDifficulties = tAnalyzer.getDifficultyMap();
+
+        System.out.println("実行時間: " + (endT - startT) + "ms");
+        System.out.println(" [ 1 ]: Lv1-1 埋めるだけ");
+        System.out.println(" [ 2 ]: Lv1-2 包含(確定)");
+        System.out.println(" [ 5 ]: Lv2   背理法");
+        System.out.println(" [ * ]: 現実装(Lv1-1)では解けなかった");
+
+        printAnalysis(puzzleBoard, tDifficulties, size);
     }
 
-    private static void printAnalysis(int[] puzzleBoard, int[] difficulties, int size,
-            boolean showAsteriskForUnsolved) {
+    private static void printAnalysis(int[] puzzleBoard, int[] difficulties, int size) {
         for (int i = 0; i < size * size; i++) {
             // 問題盤面で元々ヒント(0以上)だった場所
             if (puzzleBoard[i] >= 0) {

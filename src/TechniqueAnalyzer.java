@@ -140,10 +140,47 @@ public class TechniqueAnalyzer {
         }
     }
 
-    // --- Phase 2以降で実装するメソッド群 (スタブ) ---
+    // --- Phase 2以降で実装するメソッド群 ---
 
+    /**
+     * Lv1-1: 埋めるだけ
+     * 単一のRegionを見て、
+     * - 残り地雷数 == セル数 -> すべて地雷
+     * - 残り地雷数 == 0 -> すべて安全
+     */
     private boolean solveLv1_1() {
-        // TODO: Phase 2で実装
+        Map<Integer, Integer> deduced = new HashMap<>();
+
+        for (Region region : activeRegions) {
+            // 空のRegionはスキップ
+            if (region.isEmpty())
+                continue;
+
+            // Case 1: 残りの未確定セルがすべて地雷
+            if (region.getMines() == region.size()) {
+                for (int cellIdx : region.getCells()) {
+                    // まだ確定していない場合のみ追加
+                    if (currentBoard[cellIdx] == MINE) {
+                        deduced.put(cellIdx, FLAGGED);
+                    }
+                }
+            }
+            // Case 2: 残りの未確定セルがすべて安全
+            else if (region.getMines() == 0) {
+                for (int cellIdx : region.getCells()) {
+                    if (currentBoard[cellIdx] == MINE) {
+                        // 正解盤面から正しい数字(または空白)を取得してセット
+                        int trueVal = completeBoard[cellIdx];
+                        deduced.put(cellIdx, trueVal);
+                    }
+                }
+            }
+        }
+
+        if (!deduced.isEmpty()) {
+            applyResult(deduced, LV_1_1);
+            return true;
+        }
         return false;
     }
 
@@ -184,16 +221,19 @@ public class TechniqueAnalyzer {
             int val = entry.getValue();
 
             // 盤面更新
-            currentBoard[idx] = val;
+            if (currentBoard[idx] == MINE) { // 念のためチェック
+                currentBoard[idx] = val;
 
-            // 難易度記録 (未記録の場合のみ)
-            if (difficultyMap[idx] == LV_UNSOLVED) {
-                difficultyMap[idx] = level;
-            }
+                // 難易度記録 (未記録の場合のみ)
+                if (difficultyMap[idx] == LV_UNSOLVED) {
+                    difficultyMap[idx] = level;
+                }
 
-            // 安全セルが開いた場合、新たなヒントになるのでRegion生成を試みる
-            if (val >= 0) {
-                createRegionFromHint(idx);
+                // 安全セルが開いた場合、新たなヒントになるのでRegion生成を試みる
+                // 地雷(FLAGGED)の場合はRegionにはならない
+                if (val >= 0) {
+                    createRegionFromHint(idx);
+                }
             }
         }
 
@@ -203,23 +243,20 @@ public class TechniqueAnalyzer {
 
         for (Region r : activeRegions) {
             Region current = r;
-            boolean regionChanged = false;
 
             for (Map.Entry<Integer, Integer> entry : deduced.entrySet()) {
                 int idx = entry.getKey();
                 int val = entry.getValue();
                 boolean isMine = (val == FLAGGED);
 
+                // Regionに含まれるセルが確定した場合、Regionを更新(縮小)する
                 if (current.getCells().contains(idx)) {
                     current = current.removeCell(idx, isMine);
-                    regionChanged = true;
                 }
             }
 
             // 空でなければ次世代リストに残す
             if (!current.isEmpty()) {
-                // 重複排除ロジックはリスト構築後にやるか、ここでするか
-                // ここでは単純に追加
                 nextRegions.add(current);
             }
         }
