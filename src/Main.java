@@ -21,11 +21,8 @@ public class Main {
         System.out.println("===== 生成された盤面 (問題) =====");
         PuzzleGenerator.printBoard(puzzleBoard, size);
 
-        // ===================================================
-        // 解析2: HintCountCalculator (必要ヒント数 k)
-        // ===================================================
         System.out.println("\n------------------------------------------------");
-        System.out.println("解析2: HintCountCalculator (必要情報量 k)");
+        System.out.println("解析: HintCountCalculator (必要ヒント数 k)");
         System.out.println("------------------------------------------------");
 
         HintCountCalculator kCalculator = new HintCountCalculator(puzzleBoard, completeBoard, size);
