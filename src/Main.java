@@ -6,8 +6,8 @@ import java.util.Arrays;
  */
 public class Main {
     public static void main(String[] args) {
-        int size = 8; // 盤面サイズ
-        int bombs = 25; // 地雷数
+        int size = 10; // 盤面サイズ
+        int bombs = 40; // 地雷数
 
         // 1. サイズ・地雷数を指定してランダムなパズルを生成
         int[] completeBoard = PuzzleGenerator.generatePuzzle(size, bombs); // 正解盤面

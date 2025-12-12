@@ -1,18 +1,59 @@
-## Getting Started
+# Minesweeper Difficulty Analyzer
 
-Welcome to the VS Code Java world. Here is a guideline to help you get started to write Java code in Visual Studio Code.
+マインスイーパのパズル生成、および各セルの「論理的な難易度」を定量的に解析するJava製ツールです。
+Knuth's Algorithm X (Dancing Links) を用いた制約充足ソルバをバックエンドに使用し、パズルが論理的に解けるかどうか、また解くためにどれほどの思考コストが必要かを判定します。
 
-## Folder Structure
+## 概要
 
-The workspace contains two folders by default, where:
+このプロジェクトは、マインスイーパの盤面において、各空白セルを論理的に確定させるために必要な「ヒントの数（思考コスト $k$）」を算出します。
 
-- `src`: the folder to maintain sources
-- `lib`: the folder to maintain dependencies
+- **パズル生成**: 指定されたサイズと地雷数でランダムな盤面を生成します。
+- **ヒント最小化**: 正解が一意に定まる範囲で、可能な限りヒントを隠した「問題盤面」を作成します。
+- **難易度解析**: 各セルを開くために、最低いくつのヒントを同時に参照する必要があるか（$k$）を計算し、ヒートマップとして出力します。
 
-Meanwhile, the compiled output files will be generated in the `bin` folder by default.
+## 解析アルゴリズムの概念 ($k$-Hint Difficulty)
 
-> If you want to customize the folder structure, open `.vscode/settings.json` and update the related settings there.
+本ツールでは、難易度を以下のように定義しています。
 
-## Dependency Management
+- **$k=1$**: 単独のヒント数字と周囲の状況だけで解ける（基本的な手筋）。
+- **$k \ge 2$**: 複数のヒントを組み合わせて連立方程式のように考えないと解けない（高度な手筋）。
+- **Unknown (*)**: 現在の論理探索範囲では確定できない、または運が必要なセル。
 
-The `JAVA PROJECTS` view allows you to manage your dependencies. More details can be found [here](https://github.com/microsoft/vscode-java-dependency#manage-dependencies).
+解析器は $k=1$ から順に探索範囲を広げ、各セルがどの段階で確定するかを特定します。詳細は [HintCountCalculator.md](HintCountCalculator.md) を参照してください。
+
+## 構成ファイル
+
+主なクラスとその役割は以下の通りです。
+
+- **`src/Main.java`**: エントリーポイント。パズルの生成から解析、結果の表示までを一括で行います。
+- **`src/HintCountCalculator.java`**: 難易度解析のコアロジック。$k$ 個のヒントの組み合わせを全探索し、Dancing Linksを用いて確定情報を導出します。
+- **`src/PuzzleGenerator.java`**: ランダムなマインスイーパ盤面を生成します。
+- **`src/PuzzleMinimizer.java`**: 生成された盤面から不要なヒントを削除し、一意解を持つパズルを作成します。
+- **`src/ConstraintBuilder.java`**: 盤面の状態をDancing Links用の制約行列（Exact Cover Problem形式）に変換します。
+- **`src/DancingLinks.java`**: アルゴリズムXの実装。制約を満たす解を高速に探索します。
+
+## 実行方法
+
+Java開発環境（JDK）が必要です。VS Code等のIDEでプロジェクトを開き、`src/Main.java` を実行してください。
+
+### 出力例
+
+コンソールに以下のような解析結果が出力されます。
+
+```text
+===== 生成された盤面 (問題) =====
+ .  .  .  .  .  .  .  . 
+ .  1  1  1  .  .  .  . 
+ .  1  1  1  .  .  .  . 
+ ... (省略) ...
+
+解析2: HintCountCalculator (必要情報量 k)
+------------------------------------------------
+実行時間: 150ms
+ [数字]: 必要ヒント数 (k)
+ [ * ]: 論理的に確定不可 (運ゲー)
+ .  .  .  .  .  .  .  . 
+ .  1  1  1  .  .  .  . 
+ .  1  1  1  .  .  .  . 
+ .  2  * 2  .  .  .  . 
+ 1  2  3  2  1  .  .  .

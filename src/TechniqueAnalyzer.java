@@ -2,20 +2,20 @@ import java.util.*;
 
 /**
  * テクニックベースの難易度解析クラス
- * 人間が解く手順（定石）を模倣して、各セルがどのレベルの技術で解けるかを判定する。
+ * Phase 2 Fix v3: applyResultで盤面全体との完全同期を行い、情報の更新漏れを防ぐ
  */
 public class TechniqueAnalyzer {
 
-    // 定数定義 (HintCountCalculator等と合わせる)
-    private static final int MINE = -1; // UNKNOWN (未確定変数)
+    // 定数定義
+    private static final int MINE = -1; // UNKNOWN
     private static final int IGNORE = -2; // 計算対象外
     private static final int FLAGGED = -3; // 地雷確定
 
-    // 結果として返す難易度レベル
+    // 難易度レベル
     public static final int LV_UNSOLVED = -1;
     public static final int LV_1_1 = 1; // 埋めるだけ
     public static final int LV_1_2 = 2; // 包含 (確定)
-    public static final int LV_1_3 = 3; // 包含 (情報のみ) - ※DifficultyMapには直接出ないこともある
+    public static final int LV_1_3 = 3; // 包含 (情報のみ)
     public static final int LV_1_4 = 4; // 共通部分
     public static final int LV_2 = 5; // 背理法
 
@@ -40,56 +40,32 @@ public class TechniqueAnalyzer {
         return difficultyMap;
     }
 
-    /**
-     * 解析のメインプロセス
-     */
     public void analyze() {
         // 1. 初期化
         currentBoard = Arrays.copyOf(initialPuzzle, initialPuzzle.length);
         activeRegions = new ArrayList<>();
 
-        // 初期ヒント(数字)は難易度0
         for (int i = 0; i < currentBoard.length; i++) {
             if (currentBoard[i] >= 0) {
                 difficultyMap[i] = 0;
             }
         }
 
-        // 初期Regionの生成
         initRegions();
 
-        // 2. メインループ: 変化がなくなるまで繰り返す
+        // 2. メインループ
         boolean changed;
         do {
             changed = false;
 
-            // Step 1: Lv1-1 埋めるだけ
+            // Lv1-1: 埋めるだけ
             if (solveLv1_1()) {
                 changed = true;
-                continue; // 盤面が変わったら最初(Lv1-1)から再チェック
+                continue;
             }
 
-            // Step 2: Lv1-2 包含 (確定)
+            // Phase 3以降で Lv1-2 等を実装
             if (solveLv1_2()) {
-                changed = true;
-                continue;
-            }
-
-            // Step 3: Lv1-3 包含 (情報のみ)
-            // ※これは盤面確定ではなくRegionが増えるだけだが、その新RegionでLv1-1等が解ける可能性がある
-            if (solveLv1_3()) {
-                changed = true;
-                continue;
-            }
-
-            // Step 4: Lv1-4 共通部分 (Phase 5で実装予定)
-            if (solveLv1_4()) {
-                changed = true;
-                continue;
-            }
-
-            // Step 5: Lv2 背理法 (Phase 4で実装予定)
-            if (solveLv2()) {
                 changed = true;
                 continue;
             }
@@ -98,78 +74,30 @@ public class TechniqueAnalyzer {
     }
 
     /**
-     * 盤面上の数字セルを走査し、初期のRegionリストを生成する
-     */
-    private void initRegions() {
-        activeRegions.clear();
-        for (int i = 0; i < currentBoard.length; i++) {
-            if (currentBoard[i] >= 0) { // ヒント数字
-                createRegionFromHint(i);
-            }
-        }
-    }
-
-    /**
-     * 特定のヒントセルからRegionを生成してリストに追加
-     */
-    private void createRegionFromHint(int index) {
-        int hintValue = currentBoard[index];
-        Set<Integer> neighbors = new HashSet<>();
-        int flaggedCount = 0;
-
-        for (int nb : getNeighbors(index)) {
-            if (currentBoard[nb] == MINE) { // UNKNOWN
-                neighbors.add(nb);
-            } else if (currentBoard[nb] == FLAGGED) {
-                flaggedCount++;
-            }
-        }
-
-        if (!neighbors.isEmpty()) {
-            int remainingMines = hintValue - flaggedCount;
-            // 矛盾回避（0未満にはならないはずだが）
-            if (remainingMines < 0)
-                remainingMines = 0;
-
-            Region region = new Region(neighbors, remainingMines);
-
-            // 重複チェックして追加
-            if (!activeRegions.contains(region)) {
-                activeRegions.add(region);
-            }
-        }
-    }
-
-    // --- Phase 2以降で実装するメソッド群 ---
-
-    /**
      * Lv1-1: 埋めるだけ
-     * 単一のRegionを見て、
-     * - 残り地雷数 == セル数 -> すべて地雷
-     * - 残り地雷数 == 0 -> すべて安全
      */
     private boolean solveLv1_1() {
         Map<Integer, Integer> deduced = new HashMap<>();
 
         for (Region region : activeRegions) {
-            // 空のRegionはスキップ
             if (region.isEmpty())
                 continue;
 
-            // Case 1: 残りの未確定セルがすべて地雷
-            if (region.getMines() == region.size()) {
+            int m = region.getMines();
+            int s = region.size();
+
+            // ※ここで currentBoard との不整合(ゴミ)があっても、
+            // 以下のループ内チェックと applyResult の強力なクリーニングで吸収する
+
+            if (m == s) { // 全部地雷
                 for (int cellIdx : region.getCells()) {
-                    // まだ確定していない場合のみ追加
                     if (currentBoard[cellIdx] == MINE) {
                         deduced.put(cellIdx, FLAGGED);
                     }
                 }
-            }
-            // Case 2: 残りの未確定セルがすべて安全
-            else if (region.getMines() == 0) {
+            } else if (m == 0) { // 全部安全
                 for (int cellIdx : region.getCells()) {
                     if (currentBoard[cellIdx] == MINE) {
-                        // 正解盤面から正しい数字(または空白)を取得してセット
                         int trueVal = completeBoard[cellIdx];
                         deduced.put(cellIdx, trueVal);
                     }
@@ -184,90 +112,109 @@ public class TechniqueAnalyzer {
         return false;
     }
 
-    private boolean solveLv1_2() {
-        // TODO: Phase 3で実装
-        return false;
-    }
-
-    private boolean solveLv1_3() {
-        // TODO: Phase 3で実装
-        return false;
-    }
-
-    private boolean solveLv1_4() {
-        // TODO: Phase 5で実装
-        return false;
-    }
-
-    private boolean solveLv2() {
-        // TODO: Phase 4で実装
-        return false;
-    }
-
-    // --- 共通ユーティリティ ---
-
     /**
-     * 推論で確定した結果を盤面に反映し、Regionリストを更新する
-     * 
-     * @param deduced 確定したセル (Key: index, Value: FLAGGED or 数字)
-     * @param level   確定に使用したテクニックレベル
+     * 推論結果の反映 (完全同期版)
      */
     private void applyResult(Map<Integer, Integer> deduced, int level) {
         if (deduced.isEmpty())
             return;
 
+        // Step 1: 盤面と難易度マップを更新
+        // 先に currentBoard を「最新の真実」にする
         for (Map.Entry<Integer, Integer> entry : deduced.entrySet()) {
             int idx = entry.getKey();
             int val = entry.getValue();
 
-            // 盤面更新
-            if (currentBoard[idx] == MINE) { // 念のためチェック
+            if (currentBoard[idx] == MINE) {
                 currentBoard[idx] = val;
-
-                // 難易度記録 (未記録の場合のみ)
                 if (difficultyMap[idx] == LV_UNSOLVED) {
                     difficultyMap[idx] = level;
-                }
-
-                // 安全セルが開いた場合、新たなヒントになるのでRegion生成を試みる
-                // 地雷(FLAGGED)の場合はRegionにはならない
-                if (val >= 0) {
-                    createRegionFromHint(idx);
                 }
             }
         }
 
-        // 既存Regionの更新
-        // 確定したセルをすべてのRegionから取り除く
+        // Step 2: 新規Regionの作成
+        // 新しく開いた数字セル(Safe)からRegionを作る
+        List<Region> newRegions = new ArrayList<>();
+        for (Map.Entry<Integer, Integer> entry : deduced.entrySet()) {
+            int idx = entry.getKey();
+            int val = entry.getValue();
+            if (val >= 0) {
+                Region nr = getRegionFromHint(idx);
+                if (nr != null) {
+                    newRegions.add(nr);
+                }
+            }
+        }
+
+        // Step 3: 既存Regionの更新とクリーニング (修正ポイント)
+        // deduced だけでなく、currentBoard 全体と照らし合わせて
+        // 「既に確定しているセル」が Region に残っていたら全て削除する
         List<Region> nextRegions = new ArrayList<>();
 
         for (Region r : activeRegions) {
             Region current = r;
 
-            for (Map.Entry<Integer, Integer> entry : deduced.entrySet()) {
-                int idx = entry.getKey();
-                int val = entry.getValue();
-                boolean isMine = (val == FLAGGED);
+            // Region内の各セルについて、盤面上で確定済みかチェック
+            // (注意: removeCellするとgetCellsの中身が変わる可能性があるため、
+            // 元のセルセットをコピーして回すか、removeCellが新しいインスタンスを返すことを利用する)
 
-                // Regionに含まれるセルが確定した場合、Regionを更新(縮小)する
-                if (current.getCells().contains(idx)) {
-                    current = current.removeCell(idx, isMine);
+            for (int cellIdx : r.getCells()) {
+                int boardVal = currentBoard[cellIdx];
+
+                // MINE(-1) 以外なら、それはもう確定しているセル
+                if (boardVal != MINE) {
+                    boolean isMine = (boardVal == FLAGGED);
+                    current = current.removeCell(cellIdx, isMine);
                 }
             }
 
-            // 空でなければ次世代リストに残す
             if (!current.isEmpty()) {
                 nextRegions.add(current);
             }
         }
 
-        // 重複排除して更新
+        // Step 4: マージ
+        nextRegions.addAll(newRegions);
         activeRegions = new ArrayList<>(new HashSet<>(nextRegions));
     }
 
-    /**
-     * 周囲8セルのインデックスを取得
-     */
+    // --- Helper Methods ---
+
+    private void initRegions() {
+        activeRegions.clear();
+        for (int i = 0; i < currentBoard.length; i++) {
+            if (currentBoard[i] >= 0) {
+                Region r = getRegionFromHint(i);
+                if (r != null && !activeRegions.contains(r)) {
+                    activeRegions.add(r);
+                }
+            }
+        }
+    }
+
+    private Region getRegionFromHint(int index) {
+        int hintValue = currentBoard[index];
+        Set<Integer> neighbors = new HashSet<>();
+        int flaggedCount = 0;
+
+        for (int nb : getNeighbors(index)) {
+            if (currentBoard[nb] == MINE) {
+                neighbors.add(nb);
+            } else if (currentBoard[nb] == FLAGGED) {
+                flaggedCount++;
+            }
+        }
+
+        if (!neighbors.isEmpty()) {
+            int remainingMines = hintValue - flaggedCount;
+            if (remainingMines < 0)
+                remainingMines = 0;
+            return new Region(neighbors, remainingMines);
+        }
+        return null;
+    }
+
     private List<Integer> getNeighbors(int idx) {
         List<Integer> list = new ArrayList<>();
         int r = idx / size;
@@ -283,5 +230,22 @@ public class TechniqueAnalyzer {
             }
         }
         return list;
+    }
+
+    // Stubs for Phase 3+
+    private boolean solveLv1_2() {
+        return false;
+    }
+
+    private boolean solveLv1_3() {
+        return false;
+    }
+
+    private boolean solveLv1_4() {
+        return false;
+    }
+
+    private boolean solveLv2() {
+        return false;
     }
 }
