@@ -79,6 +79,9 @@ public class TechniqueAnalyzer {
 
             System.out.println("\n--- Round " + round + " Start ---");
 
+            // ★追加: 現在の盤面を表示
+            printCurrentBoard("Start of Round " + round);
+
             // -----------------------------------------------------------
             // 2. Lv1-1 (埋めるだけ) の適用
             // -----------------------------------------------------------
@@ -331,6 +334,33 @@ public class TechniqueAnalyzer {
         } else {
             for (int i = 0; i < activeRegions.size(); i++) {
                 System.out.println(" [" + i + "]: " + activeRegions.get(i).toString());
+            }
+        }
+        System.out.println("-----------------------------------");
+    }
+
+    /**
+     * デバッグ用: 現在の盤面状態を表示する。
+     * [ ? ] = 未確定 (MINE)
+     * [ F ] = 地雷確定 (FLAGGED)
+     * [ N ] = 数字
+     */
+    public void printCurrentBoard(String label) {
+        System.out.println("--- Board State [" + label + "] ---");
+        for (int i = 0; i < board.length; i++) {
+            int val = board[i];
+            if (val == MINE) {
+                System.out.print(" ? ");
+            } else if (val == FLAGGED) {
+                System.out.print(" F ");
+            } else if (val == IGNORE) {
+                System.out.print(" - ");
+            } else {
+                System.out.printf(" %d ", val);
+            }
+
+            if ((i + 1) % size == 0) {
+                System.out.println();
             }
         }
         System.out.println("-----------------------------------");
