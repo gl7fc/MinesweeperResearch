@@ -2,76 +2,123 @@ import java.util.*;
 
 /**
  * 盤面全体の状態を管理し、推論のステップを進めるクラス。
- * TA方針.md に基づき実装。
+ * <p>
+ * 設計方針 (TA方針.md) に基づき、以下の役割を担います:
+ * 1. 盤面状態 (board) の管理
+ * 2. 推論の手がかりとなる領域 (Region) の管理
+ * 3. 各レベルの推論ロジック (Lv1-1, Lv1-2...) の実行制御
+ * </p>
  */
 public class TechniqueAnalyzer {
 
+    // =========================================================================
     // 定数定義 (HintCountCalculator/ConstraintBuilderと合わせる)
-    private static final int MINE = -1; // 未確定 (変数候補)
-    private static final int IGNORE = -2; // 計算対象外
-    private static final int FLAGGED = -3; // 地雷確定
-    // 0以上はヒント数字
+    // =========================================================================
+    /** 未確定セル (変数候補) */
+    private static final int MINE = -1;
+    /** 計算対象外 (盤面外や無効なセル) */
+    private static final int IGNORE = -2;
+    /** 地雷確定セル (推論により地雷と判定された場所) */
+    private static final int FLAGGED = -3;
+    // ※ 0以上の値は、そのセルに表示されているヒント数字を表す
 
-    private int[] board; // 現在の盤面状態
-    private final int[] completeBoard; // 正解盤面 (検証・更新用)
-    private final int[] difficultyMap; // 各セルの確定にかかったテクニックレベル
-    private final int size; // 盤面サイズ (横幅=高さ)
-    private List<Region> activeRegions; // 現在有効な推論の手がかりリスト
+    // =========================================================================
+    // フィールド
+    // =========================================================================
+    /** 現在の盤面状態。推論が進むにつれて MINE -> 数字 or FLAGGED に更新される。 */
+    private int[] board;
 
+    /** 正解盤面。推論結果の検証（安全装置）や、安全確定時の数字取得に使用する。 */
+    private final int[] completeBoard;
+
+    /** 各セルがどのレベルのテクニックで確定したかを記録するマップ。初期値は-1。 */
+    private final int[] difficultyMap;
+
+    /** 盤面のサイズ (N x N の N) */
+    private final int size;
+
+    /**
+     * 現在有効な推論の手がかり (Region) のリスト。
+     * Region とは、「あるセル集合の中に地雷が N 個ある」という制約情報のこと。
+     */
+    private List<Region> activeRegions;
+
+    /**
+     * コンストラクタ
+     *
+     * @param currentBoard 現在の盤面 (未確定部分は -1)
+     * @param solution     正解の完全な盤面
+     * @param size         盤面の一辺の長さ
+     */
     public TechniqueAnalyzer(int[] currentBoard, int[] solution, int size) {
         this.board = Arrays.copyOf(currentBoard, currentBoard.length);
         this.completeBoard = solution;
         this.size = size;
         this.difficultyMap = new int[currentBoard.length];
-        Arrays.fill(this.difficultyMap, -1); // -1:未解決
+        Arrays.fill(this.difficultyMap, -1); // -1:未解決で初期化
         this.activeRegions = new ArrayList<>();
     }
 
     /**
-     * 解析のメインループ
+     * 解析のメインループ。
+     * 簡単なテクニック (Lv1-1) から順に適用し、変化がなくなるまで繰り返す。
      */
     public void analyze() {
-        // 初期化: 盤面の数字ヒントからRegionを作成
+        // 1. 初期化: 盤面の既存の数字ヒントから最初の Region リストを作成する
         initRegions();
 
-        // デバッグ表示 (初期状態) - 必要に応じてコメントアウトを解除してください
-        printActiveRegions("Initial");
+        // デバッグ表示 (初期状態)
+        // printActiveRegions("Initial");
 
         boolean changed = true;
         int round = 1;
 
+        // 変化が起き続ける限りループ (不動点に達するまで)
         while (changed) {
             changed = false;
 
-            // 1. Lv1-1 (埋めるだけ) を試す
-            Map<Integer, Integer> deducedLv1 = solveLv1_1();
-            if (!deducedLv1.isEmpty()) {
-                // デバッグ表示 (確定前) - 必要に応じてコメントアウトを解除してください
-                // System.out.println("Round " + round + ": Found " + deducedLv1.size() + "
-                // cells by Lv1-1");
+            System.out.println("\n--- Round " + round + " Start ---");
 
-                applyResult(deducedLv1, 1); // Lv1で確定
+            // -----------------------------------------------------------
+            // 2. Lv1-1 (埋めるだけ) の適用
+            // -----------------------------------------------------------
+            Map<Integer, Integer> deducedLv1 = solveLv1_1();
+
+            // 何らかのセルが確定した場合
+            if (!deducedLv1.isEmpty()) {
+                System.out.println("Round " + round + ": Found " + deducedLv1.size() + " cells by Lv1-1");
+
+                // 確定情報を盤面に反映し、Region を更新・再生成する
+                applyResult(deducedLv1, 1); // Lv1として記録
+
+                // 盤面が変化したので、より高度なテクニックには進まず、
+                // 再度 Lv1-1 からチェックし直す (簡単な手筋を優先するため)
                 changed = true;
 
-                // デバッグ表示 (確定後) - 必要に応じてコメントアウトを解除してください
-                printActiveRegions("After Lv1-1 (Round " + round + ")");
+                // デバッグ表示 (確定後)
+                // printActiveRegions("After Lv1-1 (Round " + round + ")");
 
                 round++;
-                continue; // 確定したらループの最初(Lv1-1)に戻る
+                continue;
             }
 
-            // Lv1-2/3, Lv1-4, Lv2 は現時点では実装しない
+            // -----------------------------------------------------------
+            // Lv1-2/3, Lv1-4, Lv2 は現時点では未実装
+            // 将来的にはここに solveLv1_2_3() などを追加する
+            // -----------------------------------------------------------
             // if (solveLv1_2_3()) ...
         }
     }
 
     /**
-     * 初期化: 盤面上の数字ヒントを走査し、初期の Region リストを生成する
+     * 初期化処理。
+     * 盤面上のすべてのヒント数字を走査し、初期の Region リストを生成する。
      */
     private void initRegions() {
         activeRegions.clear();
         for (int i = 0; i < board.length; i++) {
-            if (board[i] >= 0) { // ヒントセル
+            // 0以上の値はヒント数字
+            if (board[i] >= 0) {
                 Region r = createRegionFromHint(i);
                 if (r != null) {
                     activeRegions.add(r);
@@ -81,73 +128,78 @@ public class TechniqueAnalyzer {
     }
 
     /**
-     * 指定されたヒントセルから Region を生成する
-     * 
+     * 指定されたヒントセルから Region (制約領域) を生成する。
+     *
      * @param hintIdx ヒントセルのインデックス
-     * @return Region オブジェクト (未確定セルが無い場合は null)
+     * @return Region オブジェクト。未確定セルが無い場合や、矛盾がある場合は null を返す。
      */
     private Region createRegionFromHint(int hintIdx) {
+        // 対象セルの数字を取得
         int hintVal = board[hintIdx];
+        // 対象セルの周囲のセルの番号を取得
         List<Integer> neighbors = getNeighbors(hintIdx);
 
         Set<Integer> unknownCells = new HashSet<>();
         int flaggedCount = 0;
 
+        // 周囲のセル状態を確認
         for (int nb : neighbors) {
             int val = board[nb];
             if (val == MINE) {
-                unknownCells.add(nb);
+                unknownCells.add(nb); // 未確定セルとしてリストアップ
             } else if (val == FLAGGED) {
-                flaggedCount++;
+                flaggedCount++; // 既に地雷と確定している数をカウント
             }
         }
 
+        // 未確定セルが一つもない（既に解決済み）場合は Region を作る必要がない
         if (unknownCells.isEmpty()) {
-            return null; // 全て確定済みならRegionは不要
+            return null;
         }
 
-        // 残りの地雷数 = ヒント値 - 周囲の旗数
+        // この Region 内に残っているはずの地雷数 = (ヒント数字) - (周囲の確定地雷数)
         int remainingMines = hintVal - flaggedCount;
 
-        // 整合性チェック (負になる場合はデータ矛盾だが、ここでは0に丸める)
-        if (remainingMines < 0)
-            remainingMines = 0;
-
-        // レベル0 (盤面由来) のRegionを作成
+        // レベル0 (盤面のヒント数字由来) のRegionを作成して返す
         return new Region(unknownCells, remainingMines, 0);
     }
 
     /**
-     * Lv1-1: 埋めるだけ
-     * - 残りすべて地雷 (mines == cells.size)
-     * - 残りすべて安全 (mines == 0)
+     * Lv1-1: 埋めるだけ (Trivial Fill)
+     * <p>
+     * 以下の2パターンを判定する:
+     * 1. 残りすべて地雷 (Regionの地雷数 == 未確定セル数) -> すべて FLAGGED
+     * 2. 残りすべて安全 (Regionの地雷数 == 0) -> すべて安全 (値を正解盤面から取得)
+     * </p>
+     *
+     * @return 確定したセルのマップ (インデックス -> 確定後の値)
      */
     private Map<Integer, Integer> solveLv1_1() {
+        // 確定したセル番号とセルの状態のセットをまとめて保持
         Map<Integer, Integer> deduced = new HashMap<>();
 
-        for (Region r : activeRegions) {
+        for (int i = 0; i < activeRegions.size(); i++) {
+            Region r = activeRegions.get(i);
+
+            // パターン1: 未確定セルがすべて地雷である場合
             if (r.getMines() == r.getCells().size()) {
-                // すべて地雷
                 for (int cell : r.getCells()) {
+                    // まだ推論済みリストに入っていない場合
                     if (!deduced.containsKey(cell)) {
                         deduced.put(cell, FLAGGED);
+                        System.out.println("  -> Solved: Cell " + cell + " is MINE (Region " + i + ": " + r + ")");
                     }
                 }
-            } else if (r.getMines() == 0) {
-                // すべて安全 -> 正解盤面から値を取得
+            }
+            // パターン2: 未確定セルがすべて安全である場合
+            else if (r.getMines() == 0) {
                 for (int cell : r.getCells()) {
                     if (!deduced.containsKey(cell)) {
-                        // 正解盤面を参照 (Mineなら矛盾だが、ロジック上はSafe扱い)
                         int trueVal = completeBoard[cell];
-                        // もし正解がMineならFLAGGEDにすべきだが、
-                        // ここは「安全確定」のロジックなので、正解盤面がMineだとロジック矛盾か盤面不正
-                        // ひとまず正解盤面の値をそのまま入れる
-                        if (trueVal == -1) {
-                            // 理論上ここには来ないはず(mines=0判定なので)
-                            deduced.put(cell, FLAGGED);
-                        } else {
-                            deduced.put(cell, trueVal);
-                        }
+
+                        deduced.put(cell, trueVal);
+                        System.out.println("  -> Solved: Cell " + cell + " is SAFE (" + trueVal + ") (Region " + i
+                                + ": " + r + ")");
                     }
                 }
             }
@@ -156,97 +208,91 @@ public class TechniqueAnalyzer {
     }
 
     /**
-     * 推論結果の適用と更新処理
-     * 1. 盤面の完全更新
-     * 2. 新規 Region の生成
-     * 3. 既存 Region の更新
-     * 4. マージ
+     * 推論結果を盤面に適用し、次のラウンドのために Region リストを更新する。
+     *
+     * @param deduced 今回のステップで確定したセルのマップ
+     * @param level   確定に使用したテクニックレベル
      */
     private void applyResult(Map<Integer, Integer> deduced, int level) {
-        Set<Integer> newlyOpenedHints = new HashSet<>();
-        // Set<Integer> determinedCells = deduced.keySet(); // 未使用
-
         // 1. 盤面の完全更新 & 難易度記録
+
+        // deduced.entrySet()で確定情報のペアを順番に取得
+        // entry: 確定したセルの位置と状態のセットを順番に1つずつ保持
         for (Map.Entry<Integer, Integer> entry : deduced.entrySet()) {
             int cellIdx = entry.getKey();
             int val = entry.getValue();
 
-            board[cellIdx] = val;
-            if (difficultyMap[cellIdx] == -1) {
-                difficultyMap[cellIdx] = level;
-            }
-
-            // もし安全で数字が開いたなら、新規ヒントとしてマーク
-            if (val >= 0) {
-                newlyOpenedHints.add(cellIdx);
+            board[cellIdx] = val; // 盤面配列を更新
+            if (difficultyMap[cellIdx] == -1) { // このセルが未推論かチェック
+                difficultyMap[cellIdx] = level; // 初めて解けた場合は難易度を記録
             }
         }
 
         List<Region> nextRegions = new ArrayList<>();
 
-        // 2. 新規 Region の生成 (新しく開いたヒントセルから)
-        for (int hintIdx : newlyOpenedHints) {
-            Region r = createRegionFromHint(hintIdx);
-            if (r != null) {
-                nextRegions.add(r);
-            }
-        }
-
-        // 3. 既存 Region の更新
-        for (Region r : activeRegions) {
-            Set<Integer> currentCells = r.getCells();
-
-            // 安全のため、relevant チェックを廃止し、常に全Regionを走査して更新判定を行う
-            Set<Integer> newCells = new HashSet<>();
-            int minesFound = 0;
-
-            for (int cell : currentCells) {
-                // まず deduced (今回の確定分) を確認
-                if (deduced.containsKey(cell)) {
-                    int val = deduced.get(cell);
-                    if (val == FLAGGED) {
-                        minesFound++;
-                    }
-                    // Safeなら除外 (minesFound増やさない)
-                } else {
-                    // deduced にない場合、現在の board の状態を確認する (重要！)
-                    // これにより、deduced経由以外で確定したセルの取りこぼしを防ぐ
-                    int currentVal = board[cell];
-                    if (currentVal == MINE) {
-                        // まだ未確定なら残す
-                        newCells.add(cell);
-                    } else if (currentVal == FLAGGED) {
-                        // 既に地雷確定しているならカウントする
-                        minesFound++;
-                    }
-                    // Safeなら除外
+        // 2. Level 0 (盤面ヒント由来) のRegionを【全再生成】
+        // 以前は「差分計算」で更新しようとしていたが、隣接関係の更新漏れや計算誤差によりバグが発生しやすかった。
+        // そのため、Lv0 Regionに関しては毎回「最新の盤面状態」から生成し直すことで、整合性を保証する。
+        for (int i = 0; i < board.length; i++) {
+            if (board[i] >= 0) { // ヒントセル
+                Region r = createRegionFromHint(i);
+                if (r != null) {
+                    nextRegions.add(r);
                 }
             }
-
-            // セル数が変わっていなくても、地雷数だけ変わる可能性もあるため、
-            // 「まだ未確定セルが残っているか」だけで判定する
-            if (!newCells.isEmpty()) {
-                int newMines = r.getMines() - minesFound;
-                // 整合性補正
-                if (newMines < 0)
-                    newMines = 0;
-                if (newMines > newCells.size())
-                    newMines = newCells.size();
-
-                // 新しいRegion作成 (Levelは継承)
-                Region newRegion = new Region(newCells, newMines, r.getOriginLevel());
-                nextRegions.add(newRegion);
-            }
         }
 
+        // // 3. Level > 0 (推論由来) のRegionを【更新して引き継ぐ】
+        // // Lv1-2以降で生成される「仮想的なRegion」は盤面上の特定ヒントと紐付かないため、
+        // // 既存のRegionから確定セルを取り除く「差分計算」で維持する必要がある。
+        // // (現時点では Lv1-1 のみ実装のため、このループは実質機能しないが、拡張性のために残す)
+        // for (Region r : activeRegions) {
+        // if (r.getOriginLevel() == 0) {
+        // continue; // Level 0 は上で再生成済みなのでスキップ
+        // }
+
+        // Set<Integer> currentCells = r.getCells();
+        // Set<Integer> newCells = new HashSet<>();
+        // int minesFound = 0;
+
+        // // 既存Regionに含まれる各セルについて、最新の状態を確認
+        // for (int cell : currentCells) {
+        // int currentVal = board[cell];
+        // if (currentVal == MINE) {
+        // // まだ未確定なら、新しいRegionの構成要素として残す
+        // newCells.add(cell);
+        // } else if (currentVal == FLAGGED) {
+        // // 既に地雷と確定している場合、このRegion内の地雷が見つかったとみなす
+        // minesFound++;
+        // }
+        // // Safeになったセルは単にリストから除外される (地雷数は減らない)
+        // }
+
+        // // まだ未確定セルが残っている場合、新しいRegionとして登録
+        // if (!newCells.isEmpty()) {
+        // int newMines = r.getMines() - minesFound;
+
+        // // 整合性補正
+        // if (newMines < 0)
+        // newMines = 0;
+        // if (newMines > newCells.size())
+        // newMines = newCells.size();
+
+        // Region newRegion = new Region(newCells, newMines, r.getOriginLevel());
+        // nextRegions.add(newRegion);
+        // }
+        // }
+
         // 4. マージ (重複排除)
-        // Setに入れて重複を消してからリストに戻す
+        // 複数のヒントから全く同じ Region (例: {A, B}に地雷1個) が生成されることがあるため、
+        // Set を経由してユニークな Region のみに絞り込む。
         Set<Region> uniqueRegions = new HashSet<>(nextRegions);
         activeRegions = new ArrayList<>(uniqueRegions);
     }
 
     /**
-     * 周囲8セルのインデックスを取得
+     * 指定されたインデックスの周囲8セルのインデックスを取得する。
+     * 盤面外の座標は除外される。
      */
     private List<Integer> getNeighbors(int idx) {
         List<Integer> list = new ArrayList<>();
@@ -266,21 +312,23 @@ public class TechniqueAnalyzer {
         return list;
     }
 
-    // 結果取得用
+    // --- 結果取得・デバッグ用メソッド ---
+
+    /**
+     * 計算された難易度マップを取得する。
+     */
     public int[] getDifficultyMap() {
         return difficultyMap;
     }
 
     /**
-     * デバッグ用: 現在の activeRegions をコンソールに出力する
+     * 現在の activeRegions の内容をコンソールに出力する (デバッグ用)。
      */
     public void printActiveRegions(String label) {
         System.out.println("--- Active Regions [" + label + "] ---");
         if (activeRegions.isEmpty()) {
             System.out.println(" (No active regions)");
         } else {
-            // 見やすくするため、地雷数やセル数などでソートして表示することも可能だが
-            // まずはそのまま出力する
             for (int i = 0; i < activeRegions.size(); i++) {
                 System.out.println(" [" + i + "]: " + activeRegions.get(i).toString());
             }
