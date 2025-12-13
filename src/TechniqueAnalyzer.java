@@ -20,6 +20,17 @@ public class TechniqueAnalyzer {
     private static final int IGNORE = -2;
     /** 地雷確定セル (推論により地雷と判定された場所) */
     private static final int FLAGGED = -3;
+
+    /**
+     * * 安全確定セル (推論により安全と判定された場所)。
+     * <p>
+     * ★重要: 本パズルの仕様上、安全と確定しても「そのセルの数字(ヒント)」は開示されない。
+     * そのため、通常の数字(0以上)とは区別して管理する。
+     * このセルから新しい Region が生成されることはない。
+     * </p>
+     */
+    private static final int SAFE = -4;
+
     // ※ 0以上の値は、そのセルに表示されているヒント数字を表す
 
     // =========================================================================
@@ -120,7 +131,7 @@ public class TechniqueAnalyzer {
     private void initRegions() {
         activeRegions.clear();
         for (int i = 0; i < board.length; i++) {
-            // 0以上の値はヒント数字
+            // 0以上の値はヒント数字。SAFE(-4)やFLAGGED(-3)からは生成しない。
             if (board[i] >= 0) {
                 Region r = createRegionFromHint(i);
                 if (r != null) {
@@ -172,13 +183,12 @@ public class TechniqueAnalyzer {
      * <p>
      * 以下の2パターンを判定する:
      * 1. 残りすべて地雷 (Regionの地雷数 == 未確定セル数) -> すべて FLAGGED
-     * 2. 残りすべて安全 (Regionの地雷数 == 0) -> すべて安全 (値を正解盤面から取得)
+     * 2. 残りすべて安全 (Regionの地雷数 == 0) -> すべて SAFE (数字は開かない)
      * </p>
      *
      * @return 確定したセルのマップ (インデックス -> 確定後の値)
      */
     private Map<Integer, Integer> solveLv1_1() {
-        // 確定したセル番号とセルの状態のセットをまとめて保持
         Map<Integer, Integer> deduced = new HashMap<>();
 
         for (int i = 0; i < activeRegions.size(); i++) {
@@ -200,7 +210,7 @@ public class TechniqueAnalyzer {
                     if (!deduced.containsKey(cell)) {
                         int trueVal = completeBoard[cell];
 
-                        deduced.put(cell, trueVal);
+                        deduced.put(cell, SAFE);
                         System.out.println("  -> Solved: Cell " + cell + " is SAFE (" + trueVal + ") (Region " + i
                                 + ": " + r + ")");
                     }
@@ -234,8 +244,8 @@ public class TechniqueAnalyzer {
         List<Region> nextRegions = new ArrayList<>();
 
         // 2. Level 0 (盤面ヒント由来) のRegionを【全再生成】
-        // 以前は「差分計算」で更新しようとしていたが、隣接関係の更新漏れや計算誤差によりバグが発生しやすかった。
-        // そのため、Lv0 Regionに関しては毎回「最新の盤面状態」から生成し直すことで、整合性を保証する。
+        // board[i] >= 0 (数字が見えているセル) のみ対象。
+        // SAFE(-4) になったセルからは生成されないので、情報は増えない。
         for (int i = 0; i < board.length; i++) {
             if (board[i] >= 0) { // ヒントセル
                 Region r = createRegionFromHint(i);
@@ -343,6 +353,7 @@ public class TechniqueAnalyzer {
      * デバッグ用: 現在の盤面状態を表示する。
      * [ ? ] = 未確定 (MINE)
      * [ F ] = 地雷確定 (FLAGGED)
+     * [ S ] = 安全確定 (SAFE)
      * [ N ] = 数字
      */
     public void printCurrentBoard(String label) {
@@ -353,6 +364,8 @@ public class TechniqueAnalyzer {
                 System.out.print(" ? ");
             } else if (val == FLAGGED) {
                 System.out.print(" F ");
+            } else if (val == SAFE) {
+                System.out.print(" S "); // 安全確定だが見えていない状態
             } else if (val == IGNORE) {
                 System.out.print(" - ");
             } else {

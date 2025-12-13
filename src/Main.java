@@ -1,6 +1,6 @@
 public class Main {
     public static void main(String[] args) {
-        int size = 8;
+        int size = 10;
         int bombs = 40;
         int puzzles = 1;
 
@@ -18,9 +18,9 @@ public class Main {
             PuzzleGenerator.printBoard(puzzle, size);
 
             // ---------------------------------------------------
-            // HintCountCalculator を使用して難易度を判定
+            // 1. HintCountCalculator を使用して難易度を判定 (既存)
             // ---------------------------------------------------
-            System.out.println("\n--- 難易度解析実行中... ---");
+            System.out.println("\n--- [HintCountCalculator] 難易度解析実行中... ---");
 
             // puzzle: 問題, board: 正解, size: サイズ
             HintCountCalculator calculator = new HintCountCalculator(puzzle, board, size);
@@ -32,12 +32,29 @@ public class Main {
             int[] difficulties = calculator.getDifficultyMap();
 
             // 結果表示
-            System.out.println("--- 解析結果 ---");
+            System.out.println("--- 解析結果 (k-Hint) ---");
             System.out.println(" [数字]: そのセルを解くのに必要だったヒント数(k)");
-            System.out.println(" [ . ]: 元から表示されていたヒント");
-            System.out.println(" [ * ]: 論理的に確定できなかったセル\n");
-
             printAnalysis(puzzle, difficulties, size);
+
+            // ---------------------------------------------------
+            // 2. TechniqueAnalyzer を使用して難易度を判定 (新規追加)
+            // ---------------------------------------------------
+            System.out.println("\n--- [TechniqueAnalyzer] テクニック解析実行中... ---");
+
+            TechniqueAnalyzer analyzer = new TechniqueAnalyzer(puzzle, board, size);
+
+            // 解析実行
+            analyzer.analyze();
+
+            // 結果取得
+            int[] taDifficulties = analyzer.getDifficultyMap();
+
+            // 結果表示
+            System.out.println("--- 解析結果 (Technique Level) ---");
+            System.out.println(" [ 1 ]: Lv1-1 (埋めるだけ)");
+            System.out.println(" [ * ]: 論理的に確定できなかったセル (Lv1-2以降未実装含む)\n");
+
+            printAnalysis(puzzle, taDifficulties, size);
         }
     }
 
@@ -53,7 +70,7 @@ public class Main {
                 if (level == -1) {
                     System.out.print(" * "); // 未解決
                 } else {
-                    System.out.printf(" %d ", level); // 難易度
+                    System.out.printf(" %d ", level); // 難易度/レベル
                 }
             }
 
