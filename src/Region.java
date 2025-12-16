@@ -17,7 +17,7 @@ public class Region {
      * 
      * @param cells       未確定セルの集合
      * @param mines       地雷数
-     * @param originLevel 生成レベル
+     * @param originLevel 生成レベル (0=盤面ヒント, 3=Lv1-3推論など)
      */
     public Region(Set<Integer> cells, int mines, int originLevel) {
         this.cells = Collections.unmodifiableSet(new HashSet<>(cells));
@@ -37,10 +37,6 @@ public class Region {
         return originLevel;
     }
 
-    public int size() {
-        return cells.size();
-    }
-
     /**
      * 自分が相手の部分集合かどうか判定する
      * (A isSubsetOf B means A ⊆ B)
@@ -54,97 +50,24 @@ public class Region {
      * D = this - other
      * ※ Lv1-2/3で使用される
      */
-    public Region subtract(Region other, int newLevel) {
+    public Region subtract(Region other) {
+        // cells = this.cells - other.cells
         Set<Integer> newCells = new HashSet<>(this.cells);
         newCells.removeAll(other.cells);
 
         // mines = this.mines - other.mines
         int newMines = this.mines - other.mines;
 
-        // 矛盾回避
-        if (newMines < 0)
-            newMines = 0;
-        if (newMines > newCells.size())
-            newMines = newCells.size();
+        // level = max(this.level, other.level, 3)
+        int newLevel = Math.max(this.originLevel, other.originLevel);
+        newLevel = Math.max(newLevel, 3); // Lv1-3以上として扱う
 
         return new Region(newCells, newMines, newLevel);
     }
 
-    /**
-     * 共通部分を利用した推論を行い、新しい Region のリストを返す (Lv1-4用)
-     * 2つのRegion (A, B) の共通部分と差分領域の地雷数範囲を計算し、
-     * 確定する情報があればそれを Region として返す。
-     */
-    public Set<Region> intersect(Region other, int newLevel) {
-        Set<Region> result = new HashSet<>();
-
-        // 共通部分のセル集合
-        Set<Integer> commonCells = new HashSet<>(this.cells);
-        commonCells.retainAll(other.cells);
-
-        if (commonCells.isEmpty())
-            return result; // 共通部分なし
-
-        // 差分領域 (OnlyA, OnlyB)
-        Set<Integer> onlyACells = new HashSet<>(this.cells);
-        onlyACells.removeAll(commonCells);
-
-        Set<Integer> onlyBCells = new HashSet<>(other.cells);
-        onlyBCells.removeAll(commonCells);
-
-        // 各領域のサイズ
-        int sizeCommon = commonCells.size();
-        int sizeOnlyA = onlyACells.size();
-        int sizeOnlyB = onlyBCells.size();
-
-        // 共通部分の地雷数の範囲 [minC, maxC] を計算
-        // maxC = min(|Common|, mA, mB)
-        int maxC = Math.min(sizeCommon, Math.min(this.mines, other.mines));
-
-        // minC = max(0, mA - |OnlyA|, mB - |OnlyB|)
-        int minC = Math.max(0, Math.max(this.mines - sizeOnlyA, other.mines - sizeOnlyB));
-
-        // ケース1: 共通部分の地雷数が確定する場合 (minC == maxC)
-        if (minC == maxC) {
-            int determinedMines = minC;
-            result.add(new Region(commonCells, determinedMines, newLevel));
-
-            // 派生: OnlyA の地雷数も確定する (mA - commonMines)
-            if (!onlyACells.isEmpty()) {
-                int minesA = this.mines - determinedMines;
-                result.add(new Region(onlyACells, minesA, newLevel));
-            }
-
-            // 派生: OnlyB の地雷数も確定する (mB - commonMines)
-            if (!onlyBCells.isEmpty()) {
-                int minesB = other.mines - determinedMines;
-                result.add(new Region(onlyBCells, minesB, newLevel));
-            }
-        } else {
-            // ケース2: 共通部分は確定しないが、周辺領域(OnlyA, OnlyB)が確定するケース
-            // OnlyAの地雷数範囲: [mA - maxC, mA - minC]
-            // OnlyBの地雷数範囲: [mB - maxC, mB - minC]
-
-            // OnlyA が確定するかチェック
-            int minMinesOnlyA = this.mines - maxC;
-            int maxMinesOnlyA = this.mines - minC;
-            if (minMinesOnlyA == maxMinesOnlyA && !onlyACells.isEmpty()) {
-                result.add(new Region(onlyACells, minMinesOnlyA, newLevel));
-            }
-
-            // OnlyB が確定するかチェック
-            int minMinesOnlyB = other.mines - maxC;
-            int maxMinesOnlyB = other.mines - minC;
-            if (minMinesOnlyB == maxMinesOnlyB && !onlyBCells.isEmpty()) {
-                result.add(new Region(onlyBCells, minMinesOnlyB, newLevel));
-            }
-        }
-
-        return result;
-    }
-
     @Override
     public String toString() {
+        // デバッグ用表示: "{10, 11, 12}(3) = 1"
         String cellStr = cells.stream()
                 .sorted()
                 .map(String::valueOf)
