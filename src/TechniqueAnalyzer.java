@@ -113,14 +113,22 @@ public class TechniqueAnalyzer {
                 // printActiveRegions("After Lv1-1 (Round " + round + ")");
 
                 round++;
-                continue;
+                continue; // 変化があったら最初(Lv1-1)からやり直す
             }
 
             // -----------------------------------------------------------
-            // Lv1-2/3, Lv1-4, Lv2 は現時点では未実装
-            // 将来的にはここに solveLv1_2_3() などを追加する
+            // 2. Lv1-2 (包含 - 確定) の適用
             // -----------------------------------------------------------
-            // if (solveLv1_2_3()) ...
+            Map<Integer, Integer> deducedLv2 = solveLv1_2();
+            if (!deducedLv2.isEmpty()) {
+                System.out.println("Round " + round + ": Found " + deducedLv2.size() + " cells by Lv1-2");
+                applyResult(deducedLv2, 2);
+                changed = true;
+                round++;
+                continue; // 変化があったら最初(Lv1-1)からやり直す
+            }
+
+            // Lv1-3 (包含 - 情報) は未実装
         }
     }
 
@@ -200,7 +208,7 @@ public class TechniqueAnalyzer {
                     // まだ推論済みリストに入っていない場合
                     if (!deduced.containsKey(cell)) {
                         deduced.put(cell, FLAGGED);
-                        System.out.println("  -> Solved: Cell " + cell + " is MINE (Region " + i + ": " + r + ")");
+                        System.out.println("  -> Solved (Lv1-1): Cell " + cell + " is MINE (Region " + i + ")");
                     }
                 }
             }
@@ -211,8 +219,62 @@ public class TechniqueAnalyzer {
                         int trueVal = completeBoard[cell];
 
                         deduced.put(cell, SAFE);
-                        System.out.println("  -> Solved: Cell " + cell + " is SAFE (" + trueVal + ") (Region " + i
-                                + ": " + r + ")");
+                        System.out.println("  -> Solved (Lv1-1): Cell " + cell + " is SAFE (Region " + i + ")");
+                    }
+                }
+            }
+        }
+        return deduced;
+    }
+
+    /**
+     * Lv1-2: 包含 (確定)
+     * Region同士の包含関係を利用し、差分領域が即座に確定する場合を検出する。
+     * * @return 確定したセルのマップ
+     */
+    private Map<Integer, Integer> solveLv1_2() {
+        Map<Integer, Integer> deduced = new HashMap<>();
+
+        // 全ペア探索
+        for (int i = 0; i < activeRegions.size(); i++) {
+            Region rA = activeRegions.get(i);
+            for (int j = 0; j < activeRegions.size(); j++) {
+                if (i == j)
+                    continue;
+                Region rB = activeRegions.get(j);
+
+                // rA が rB の部分集合である場合 (rA ⊆ rB)
+                // 差分 diff = rB - rA
+                if (rA.isSubsetOf(rB)) {
+                    Region diff = rB.subtract(rA);
+
+                    if (diff.getCells().isEmpty())
+                        continue;
+
+                    boolean determined = false;
+                    int valToSet = -99;
+
+                    // 差分領域が確定できるかチェック
+                    // パターン1: 差分がすべて地雷
+                    if (diff.getMines() == diff.getCells().size()) {
+                        determined = true;
+                        valToSet = FLAGGED;
+                    }
+                    // パターン2: 差分がすべて安全
+                    else if (diff.getMines() == 0) {
+                        determined = true;
+                        valToSet = SAFE;
+                    }
+
+                    if (determined) {
+                        for (int cell : diff.getCells()) {
+                            if (!deduced.containsKey(cell)) {
+                                deduced.put(cell, valToSet);
+                                String type = (valToSet == FLAGGED) ? "MINE" : "SAFE";
+                                System.out.println("  -> Solved (Lv1-2): Cell " + cell + " is " + type +
+                                        " (Diff: Region[" + j + "] - Region[" + i + "])");
+                            }
+                        }
                     }
                 }
             }
@@ -241,11 +303,9 @@ public class TechniqueAnalyzer {
             }
         }
 
+        // 2. Regionリストの全再生成
+        // 現在の盤面(SAFE, FLAGGED反映済み)に基づいて、全てのヒントからRegionを作り直す
         List<Region> nextRegions = new ArrayList<>();
-
-        // 2. Level 0 (盤面ヒント由来) のRegionを【全再生成】
-        // board[i] >= 0 (数字が見えているセル) のみ対象。
-        // SAFE(-4) になったセルからは生成されないので、情報は増えない。
         for (int i = 0; i < board.length; i++) {
             if (board[i] >= 0) { // ヒントセル
                 Region r = createRegionFromHint(i);
@@ -255,50 +315,7 @@ public class TechniqueAnalyzer {
             }
         }
 
-        // // 3. Level > 0 (推論由来) のRegionを【更新して引き継ぐ】
-        // // Lv1-2以降で生成される「仮想的なRegion」は盤面上の特定ヒントと紐付かないため、
-        // // 既存のRegionから確定セルを取り除く「差分計算」で維持する必要がある。
-        // // (現時点では Lv1-1 のみ実装のため、このループは実質機能しないが、拡張性のために残す)
-        // for (Region r : activeRegions) {
-        // if (r.getOriginLevel() == 0) {
-        // continue; // Level 0 は上で再生成済みなのでスキップ
-        // }
-
-        // Set<Integer> currentCells = r.getCells();
-        // Set<Integer> newCells = new HashSet<>();
-        // int minesFound = 0;
-
-        // // 既存Regionに含まれる各セルについて、最新の状態を確認
-        // for (int cell : currentCells) {
-        // int currentVal = board[cell];
-        // if (currentVal == MINE) {
-        // // まだ未確定なら、新しいRegionの構成要素として残す
-        // newCells.add(cell);
-        // } else if (currentVal == FLAGGED) {
-        // // 既に地雷と確定している場合、このRegion内の地雷が見つかったとみなす
-        // minesFound++;
-        // }
-        // // Safeになったセルは単にリストから除外される (地雷数は減らない)
-        // }
-
-        // // まだ未確定セルが残っている場合、新しいRegionとして登録
-        // if (!newCells.isEmpty()) {
-        // int newMines = r.getMines() - minesFound;
-
-        // // 整合性補正
-        // if (newMines < 0)
-        // newMines = 0;
-        // if (newMines > newCells.size())
-        // newMines = newCells.size();
-
-        // Region newRegion = new Region(newCells, newMines, r.getOriginLevel());
-        // nextRegions.add(newRegion);
-        // }
-        // }
-
-        // 4. マージ (重複排除)
-        // 複数のヒントから全く同じ Region (例: {A, B}に地雷1個) が生成されることがあるため、
-        // Set を経由してユニークな Region のみに絞り込む。
+        // 3. 重複排除
         Set<Region> uniqueRegions = new HashSet<>(nextRegions);
         activeRegions = new ArrayList<>(uniqueRegions);
     }
