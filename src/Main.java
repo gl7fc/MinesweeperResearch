@@ -76,10 +76,11 @@ public class Main {
 
             // 結果表示
             System.out.println("--- 解析結果 (Technique Level) ---");
-            // System.out.println(" [ 1 ]: Lv1-1 (埋めるだけ)");
-            // System.out.println(" [ 2 ]: Lv1-2 (包含:確定)");
-            // System.out.println(" [ 3 ]: Lv1-3 (包含:情報) - Lv1-3を経由してLv1-1で解けた場合");
-            // System.out.println(" [ * ]: 論理的に確定できなかったセル (Lv1-4以降未実装含む)\n");
+            System.out.println(" [ 1 ]: Lv1-1 (埋めるだけ)");
+            System.out.println(" [ 2 ]: Lv1-2 (包含:確定) - 廃止(Lv1-3へ統合)");
+            System.out.println(" [ 3 ]: Lv1-3 (包含:情報) - Lv1-3を経由してLv1-1で解けた場合");
+            System.out.println(" [ 4 ]: Lv1-4 (共通)");
+            System.out.println(" [ * ]: 論理的に確定できなかったセル (Lv2未実装含む)\n");
 
             printAnalysis(puzzle, taDifficulties, size);
         }
