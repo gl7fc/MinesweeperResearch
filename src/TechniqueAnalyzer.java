@@ -256,7 +256,7 @@ public class TechniqueAnalyzer {
         sortedRegions.sort(Comparator.comparingInt(Region::getOriginLevel));
 
         for (Region r : sortedRegions) {
-            // Lv1で解けるものがあれば、Lv2以上の探索は行わずに即座に戻る
+            // もし既にLv1のテクニックで確定したセルがあるなら、Lv2以上の探索は行わずに即座に戻る
             if (!deduced.isEmpty()) {
                 boolean hasLv1Deduction = false;
                 for (int level : deducedLevel.values()) {
@@ -266,6 +266,8 @@ public class TechniqueAnalyzer {
                     }
                 }
                 if (r.getOriginLevel() > LV_1 && hasLv1Deduction) {
+                    // ★修正: 戻る前に難易度マップを更新する
+                    updateDifficultyMap(deducedLevel);
                     return deduced;
                 }
             }
@@ -301,6 +303,16 @@ public class TechniqueAnalyzer {
             }
         }
 
+        // 難易度マップへの反映 (まだ未確定の場所のみ)
+        updateDifficultyMap(deducedLevel);
+
+        return deduced;
+    }
+
+    /**
+     * 難易度マップの更新を行うヘルパーメソッド
+     */
+    private void updateDifficultyMap(Map<Integer, Integer> deducedLevel) {
         for (Map.Entry<Integer, Integer> entry : deducedLevel.entrySet()) {
             int cell = entry.getKey();
             int lvl = entry.getValue();
@@ -308,8 +320,6 @@ public class TechniqueAnalyzer {
                 difficultyMap[cell] = lvl;
             }
         }
-
-        return deduced;
     }
 
     /**
@@ -336,6 +346,8 @@ public class TechniqueAnalyzer {
 
         for (int nb : neighbors) {
             int val = board[nb];
+            // MINE(-1) は未確定。SAFE(-4) は安全確定だがヒントではない。
+            // Regionの対象は「地雷かどうかわからないセル」なので、SAFEは除外する。
             if (val == MINE) {
                 unknownCells.add(nb);
             } else if (val == FLAGGED) {
@@ -348,7 +360,7 @@ public class TechniqueAnalyzer {
         int remainingMines = hintVal - flaggedCount;
 
         Region r = new Region(unknownCells, remainingMines, LV_1);
-        r.addSourceHint(hintIdx);
+        r.addSourceHint(hintIdx); // 生成元ヒントの位置を記録
         return r;
     }
 
@@ -392,7 +404,7 @@ public class TechniqueAnalyzer {
             } else if (val == FLAGGED) {
                 System.out.print(" F ");
             } else if (val == SAFE) {
-                System.out.print(" S ");
+                System.out.print(" S "); // Sマークのみで数字は出ない
             } else if (val == IGNORE) {
                 System.out.print(" - ");
             } else {
