@@ -158,6 +158,14 @@ public class Region {
         return String.format("%s(Lv%d)=%d", cellStr, originLevel, mines);
     }
 
+    public String toLogString() {
+        String cellStr = cells.stream()
+                .sorted()
+                .map(String::valueOf)
+                .collect(Collectors.joining(", ", "{", "}"));
+        return String.format("%s=%d", cellStr, mines);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o)

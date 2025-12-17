@@ -7,7 +7,7 @@ import java.util.*;
  * 1. Lv2/Lv3のRegionは「初期盤面」からのみ生成し、以降は新規生成しない。
  * 2. ラウンド進行時は、既存のLv2/Lv3 Regionをメンテナンス(確定セルの除去)して維持する。
  * 3. Lv1 Regionのみ、毎ラウンド最新の盤面から再生成する。
- * 4. 出力フォーマットを詳細化 (Regionの中身とSourceを表示)。
+ * 4. AnalysisLogger によるCSV出力機能を追加。
  */
 public class TechniqueAnalyzer {
 
@@ -42,6 +42,10 @@ public class TechniqueAnalyzer {
     // Lv2/Lv3のRegionを生成済みかどうか
     private boolean isDerivedRegionsGenerated = false;
 
+    // ★追加: ログ記録用
+    private AnalysisLogger logger;
+    private int currentRound = 0;
+
     public TechniqueAnalyzer(int[] currentBoard, int[] solution, int size) {
         this.board = Arrays.copyOf(currentBoard, currentBoard.length);
         this.completeBoard = solution;
@@ -49,6 +53,7 @@ public class TechniqueAnalyzer {
         this.difficultyMap = new int[currentBoard.length];
         Arrays.fill(this.difficultyMap, LV_UNSOLVED);
         this.regionPool = new HashMap<>();
+        this.logger = new AnalysisLogger(); // ロガー初期化
     }
 
     /**
@@ -62,13 +67,16 @@ public class TechniqueAnalyzer {
         }
 
         boolean changed = true;
-        int round = 1;
+        currentRound = 1;
 
         while (changed) {
             changed = false;
-            System.out.println("\n--- Round " + round + " Start ---");
+            System.out.println("\n--- Round " + currentRound + " Start ---");
 
-            printCurrentBoard("Start of Round " + round);
+            // ロガーにラウンド開始を通知
+            logger.startNewRound();
+
+            printCurrentBoard("Start of Round " + currentRound);
 
             // 1. Regionの生成とメンテナンス
             // Lv1は全再生成、Lv2/Lv3は初回のみ生成し以降は維持・更新
@@ -81,15 +89,22 @@ public class TechniqueAnalyzer {
             Map<Integer, Integer> deduced = solveFromPool();
 
             if (!deduced.isEmpty()) {
-                System.out.println("Round " + round + ": Found " + deduced.size() + " cells.");
+                System.out.println("Round " + currentRound + ": Found " + deduced.size() + " cells.");
                 applyResult(deduced);
                 // 盤面が変わったので、次のラウンドへ
                 changed = true;
-                round++;
+                currentRound++;
             } else {
-                System.out.println("Round " + round + ": No cells solved.");
+                System.out.println("Round " + currentRound + ": No cells solved.");
             }
         }
+    }
+
+    /**
+     * 解析ログをCSVに出力する
+     */
+    public void exportLogToCSV(String filename) {
+        logger.exportToCSV(filename);
     }
 
     /**
@@ -99,41 +114,33 @@ public class TechniqueAnalyzer {
         regionIdCounter = 0; // IDは見やすさのために毎回振り直す
 
         // 1. 既存プールのメンテナンス (Lv2, Lv3の更新)
-        // Lv1は再生成するので引き継がない。
-        // Lv2, Lv3は「初期に生成した推論」を維持するため、現在の盤面に合わせて内容を更新(縮小)して残す。
         Map<Set<Integer>, Region> nextPool = new HashMap<>();
 
         for (Region r : regionPool.values()) {
-            // Lv1 は毎回作り直すので、プールには残さない
             if (r.getOriginLevel() == LV_1)
                 continue;
 
-            // Lv2, Lv3 について、確定したセルを除去するなどのメンテナンスを行う
             Region updated = updateRegionState(r);
 
-            // まだ未確定セルが残っていて有効なら、次世代プールに引き継ぐ
             if (updated != null && !updated.getCells().isEmpty()) {
-                // キーは新しいセル集合
                 nextPool.put(updated.getCells(), updated);
             }
         }
         regionPool = nextPool;
 
         // 2. Lv1: Base Regions の完全再生成 (毎回実行)
-        // 現在の盤面から、最新のヒントRegionを生成する
         List<Region> baseRegions = new ArrayList<>();
         for (int i = 0; i < board.length; i++) {
             if (board[i] >= 0) {
                 Region r = createRegionFromHint(i);
                 if (r != null) {
                     baseRegions.add(r);
-                    addToPool(r); // Lv1を追加
+                    addToPool(r);
                 }
             }
         }
 
         // 3. Lv2 & Lv3 の新規生成 (★初回のみ実行★)
-        // ユーザー要望: Lv2/Lv3は初期盤面から生成し、以降は新しく生成しない
         if (!isDerivedRegionsGenerated) {
             for (int i = 0; i < baseRegions.size(); i++) {
                 for (int j = i + 1; j < baseRegions.size(); j++) {
@@ -151,7 +158,6 @@ public class TechniqueAnalyzer {
                             addToPool(diff);
                     }
                     // --- 共通判定 (Lv3) ---
-                    // 包含関係がない場合のみ
                     else {
                         Set<Region> intersections = rA.intersect(rB, LV_3);
                         for (Region r : intersections) {
@@ -160,17 +166,14 @@ public class TechniqueAnalyzer {
                     }
                 }
             }
-            // 生成済みフラグを立てる (これ以降、Lv2/Lv3の新規生成は行われない)
             isDerivedRegionsGenerated = true;
         }
 
-        // 最後にIDを振り直して整理
         reassignIds();
     }
 
     /**
      * Regionの状態を現在の盤面に合わせる（確定セルの除去）
-     * 矛盾が生じたり空になった場合はnullを返す
      */
     private Region updateRegionState(Region original) {
         Set<Integer> currentCells = new HashSet<>();
@@ -179,24 +182,19 @@ public class TechniqueAnalyzer {
         for (int cell : original.getCells()) {
             int val = board[cell];
             if (val == MINE) {
-                // まだ未確定なら残す
                 currentCells.add(cell);
             } else if (val == FLAGGED) {
-                // 地雷と確定していたら、このRegionの「残り地雷数」を減らす
                 currentMines--;
             }
-            // SAFEの場合は単にリストから消える（地雷数は変わらない）
         }
 
         if (currentMines < 0)
-            return null; // 矛盾
+            return null;
 
-        // 中身が変わっていなければ元のインスタンスを返す
         if (currentCells.size() == original.getCells().size() && currentMines == original.getMines()) {
             return original;
         }
 
-        // 更新された情報で新しいRegionを作成
         Region updated = new Region(currentCells, currentMines, original.getOriginLevel());
         updated.addSourceHints(parseSourceHints(original.getSourceHintsString()));
 
@@ -224,7 +222,6 @@ public class TechniqueAnalyzer {
         Set<Integer> key = newRegion.getCells();
         if (regionPool.containsKey(key)) {
             Region existing = regionPool.get(key);
-            // 既存より新しいRegionのレベルが低い場合のみ更新
             if (newRegion.getOriginLevel() < existing.getOriginLevel()) {
                 regionPool.put(key, newRegion);
             }
@@ -256,7 +253,6 @@ public class TechniqueAnalyzer {
         sortedRegions.sort(Comparator.comparingInt(Region::getOriginLevel));
 
         for (Region r : sortedRegions) {
-            // もし既にLv1のテクニックで確定したセルがあるなら、Lv2以上の探索は行わずに即座に戻る
             if (!deduced.isEmpty()) {
                 boolean hasLv1Deduction = false;
                 for (int level : deducedLevel.values()) {
@@ -266,7 +262,6 @@ public class TechniqueAnalyzer {
                     }
                 }
                 if (r.getOriginLevel() > LV_1 && hasLv1Deduction) {
-                    // ★修正: 戻る前に難易度マップを更新する
                     updateDifficultyMap(deducedLevel);
                     return deduced;
                 }
@@ -292,20 +287,23 @@ public class TechniqueAnalyzer {
                         deducedLevel.put(cell, complexity);
 
                         String type = (valToSet == FLAGGED) ? "MINE" : "SAFE";
-                        // ★修正: 出力フォーマットを詳細化
                         System.out.println("  -> Solved: Cell " + cell + " is " + type +
                                 " (via Region #" + r.getId() + ": " + r + " [Source: " + r.getSourceHintsString()
                                 + "])");
+
+                        // ★追加: ログ記録
+                        logger.logStep(currentRound, cell, type, complexity,
+                                r.getId(), r.toLogString(), r.getSourceHintsString());
                     } else {
                         if (complexity < deducedLevel.get(cell)) {
                             deducedLevel.put(cell, complexity);
+                            // ログの更新が必要ならここで行うが、今回は初回の確定を優先する
                         }
                     }
                 }
             }
         }
 
-        // 難易度マップへの反映 (まだ未確定の場所のみ)
         updateDifficultyMap(deducedLevel);
 
         return deduced;
@@ -331,8 +329,6 @@ public class TechniqueAnalyzer {
         for (Map.Entry<Integer, Integer> entry : deduced.entrySet()) {
             int cellIdx = entry.getKey();
             int val = entry.getValue();
-
-            // ペンシルパズルルール: 数字は開示せず、状態のみ更新
             board[cellIdx] = val;
         }
     }
@@ -348,8 +344,6 @@ public class TechniqueAnalyzer {
 
         for (int nb : neighbors) {
             int val = board[nb];
-            // MINE(-1) は未確定。SAFE(-4) は安全確定だがヒントではない。
-            // Regionの対象は「地雷かどうかわからないセル」なので、SAFEは除外する。
             if (val == MINE) {
                 unknownCells.add(nb);
             } else if (val == FLAGGED) {
@@ -362,7 +356,7 @@ public class TechniqueAnalyzer {
         int remainingMines = hintVal - flaggedCount;
 
         Region r = new Region(unknownCells, remainingMines, LV_1);
-        r.addSourceHint(hintIdx); // 生成元ヒントの位置を記録
+        r.addSourceHint(hintIdx);
         return r;
     }
 
@@ -406,7 +400,7 @@ public class TechniqueAnalyzer {
             } else if (val == FLAGGED) {
                 System.out.print(" F ");
             } else if (val == SAFE) {
-                System.out.print(" S "); // Sマークのみで数字は出ない
+                System.out.print(" S ");
             } else if (val == IGNORE) {
                 System.out.print(" - ");
             } else {
