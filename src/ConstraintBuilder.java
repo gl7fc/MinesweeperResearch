@@ -123,7 +123,7 @@ public class ConstraintBuilder {
                             variableCount++;
                         }
                     }
-                    // ★重要: 地雷確定セルがある場合、ヒント値を減らす
+                    // ★重要: 地雷確定セルがある場合 , ヒント値を減らす
                     else if (neighborVal == FLAGGED) {
                         effectiveHintValue--;
                     }

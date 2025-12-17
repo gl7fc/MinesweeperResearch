@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 解析の過程を記録し、CSVファイルに出力するクラス
+ * 解析の過程を記録し , CSVファイルに出力するクラス
  */
 public class AnalysisLogger {
 
@@ -47,8 +47,8 @@ public class AnalysisLogger {
     }
 
     /**
-     * ラウンドが変わるたびにステップカウンターをリセットするかどうかは要件次第ですが、
-     * ここでは「ラウンド内連番」として管理するためにリセットメソッドを用意します。
+     * ラウンドが変わるたびにステップカウンターをリセットするかどうかは要件次第ですが ,
+     * ここでは「ラウンド内連番」として管理するためにリセットメソッドを用意します.
      */
     public void startNewRound() {
         this.stepCounter = 0;

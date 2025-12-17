@@ -2,7 +2,7 @@ import java.util.Arrays;
 
 /**
  * マインスイーパ難易度解析 メインクラス
- * 世代別解析(GenerationSolver) と 必要ヒント数解析(HintCountCalculator) を比較実行する。
+ * 世代別解析(GenerationSolver) と 必要ヒント数解析(HintCountCalculator) を比較実行する.
  */
 public class Main {
     public static void main(String[] args) {

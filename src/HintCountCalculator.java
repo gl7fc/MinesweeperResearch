@@ -97,7 +97,7 @@ public class HintCountCalculator {
 
         for (List<Integer> subset : combinations) {
             // 有効性チェック: 部分集合の周囲にUNKNOWNがなければスキップ
-            // 同時に、この部分集合に関連するUNKNOWNセル(ターゲット)を特定
+            // 同時に , この部分集合に関連するUNKNOWNセル(ターゲット)を特定
             Set<Integer> neighbors = getUnknownNeighbors(subset, currentBoard);
             if (neighbors.isEmpty()) {
                 continue;
@@ -113,7 +113,7 @@ public class HintCountCalculator {
 
                 // 既にこのラウンドで処理済みでなければ
                 if (!roundSolved.contains(cellIdx)) {
-                    // ここで盤面更新はせず、セットに追加のみ
+                    // ここで盤面更新はせず , セットに追加のみ
                     roundSolved.add(cellIdx);
 
                     // 難易度記録 (初めて解けた場合のみ)
@@ -136,7 +136,7 @@ public class HintCountCalculator {
     }
 
     /**
-     * 局所解析を行い、確定したセルとその値を返す
+     * 局所解析を行い , 確定したセルとその値を返す
      * 
      * @return Map<セルインデックス, 確定した値(FLAGGED or 数字)>
      */
@@ -252,12 +252,12 @@ public class HintCountCalculator {
 
         DancingLinks dlx = new DancingLinks(matrix, constraint);
         dlx.runSolver();
-        // 解が1つ以上あれば、そのシナリオは「可能」
-        // ConstraintBuilderのblanks数は渡すが、この判定には影響しないため適当で良いが、
-        // 既存実装に合わせるならCBから取ったほうが良い。ただしSolutionsCountの実装依存。
-        // ここでは便宜上0を渡すが、DancingLinksのコードを見る限り引数は使われていないか、
-        // 単なるカウンター返却用メソッドなら問題ない。
-        // UploadされたDancingLinksを見ると引数blanksは使われていない(return solutionsCountのみ)。
+        // 解が1つ以上あれば , そのシナリオは「可能」
+        // ConstraintBuilderのblanks数は渡すが , この判定には影響しないため適当で良いが ,
+        // 既存実装に合わせるならCBから取ったほうが良い. ただしSolutionsCountの実装依存.
+        // ここでは便宜上0を渡すが , DancingLinksのコードを見る限り引数は使われていないか ,
+        // 単なるカウンター返却用メソッドなら問題ない.
+        // UploadされたDancingLinksを見ると引数blanksは使われていない(return solutionsCountのみ).
         return dlx.SolutionsCount(0) > 0;
     }
 

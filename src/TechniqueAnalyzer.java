@@ -1,13 +1,13 @@
 import java.util.*;
 
 /**
- * 盤面全体の状態を管理し、推論のステップを進めるクラス。
- * 「Region事前全列挙モデル」に基づき実装。
+ * 盤面全体の状態を管理し , 推論のステップを進めるクラス.
+ * 「Region事前全列挙モデル」に基づき実装.
  * * ★修正版仕様:
- * 1. Lv2/Lv3のRegionは「初期盤面」からのみ生成し、以降は新規生成しない。
- * 2. ラウンド進行時は、既存のLv2/Lv3 Regionをメンテナンス(確定セルの除去)して維持する。
- * 3. Lv1 Regionのみ、毎ラウンド最新の盤面から再生成する。
- * 4. AnalysisLogger によるCSV出力機能を追加。
+ * 1. Lv2/Lv3のRegionは「初期盤面」からのみ生成し , 以降は新規生成しない.
+ * 2. ラウンド進行時は , 既存のLv2/Lv3 Regionをメンテナンス(確定セルの除去)して維持する.
+ * 3. Lv1 Regionのみ , 毎ラウンド最新の盤面から再生成する.
+ * 4. AnalysisLogger によるCSV出力機能を追加.
  */
 public class TechniqueAnalyzer {
 
@@ -57,7 +57,7 @@ public class TechniqueAnalyzer {
     }
 
     /**
-     * 解析のメインループ。
+     * 解析のメインループ.
      */
     public void analyze() {
         // 初期ヒントは難易度0
@@ -79,7 +79,7 @@ public class TechniqueAnalyzer {
             printCurrentBoard("Start of Round " + currentRound);
 
             // 1. Regionの生成とメンテナンス
-            // Lv1は全再生成、Lv2/Lv3は初回のみ生成し以降は維持・更新
+            // Lv1は全再生成 , Lv2/Lv3は初回のみ生成し以降は維持・更新
             updateAndGenerateRegions();
 
             // デバッグ出力
@@ -91,7 +91,7 @@ public class TechniqueAnalyzer {
             if (!deduced.isEmpty()) {
                 System.out.println("Round " + currentRound + ": Found " + deduced.size() + " cells.");
                 applyResult(deduced);
-                // 盤面が変わったので、次のラウンドへ
+                // 盤面が変わったので , 次のラウンドへ
                 changed = true;
                 currentRound++;
             } else {
@@ -216,7 +216,7 @@ public class TechniqueAnalyzer {
     }
 
     /**
-     * Regionをプールに追加する。
+     * Regionをプールに追加する.
      */
     private void addToPool(Region newRegion) {
         Set<Integer> key = newRegion.getCells();
@@ -242,7 +242,7 @@ public class TechniqueAnalyzer {
     }
 
     /**
-     * プールされたRegionを使って確定できるセルを探す。
+     * プールされたRegionを使って確定できるセルを探す.
      */
     private Map<Integer, Integer> solveFromPool() {
         Map<Integer, Integer> deduced = new HashMap<>();
@@ -297,7 +297,7 @@ public class TechniqueAnalyzer {
                     } else {
                         if (complexity < deducedLevel.get(cell)) {
                             deducedLevel.put(cell, complexity);
-                            // ログの更新が必要ならここで行うが、今回は初回の確定を優先する
+                            // ログの更新が必要ならここで行うが , 今回は初回の確定を優先する
                         }
                     }
                 }
@@ -323,7 +323,7 @@ public class TechniqueAnalyzer {
     }
 
     /**
-     * 推論結果を盤面に適用する。
+     * 推論結果を盤面に適用する.
      */
     private void applyResult(Map<Integer, Integer> deduced) {
         for (Map.Entry<Integer, Integer> entry : deduced.entrySet()) {

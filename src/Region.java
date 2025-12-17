@@ -4,8 +4,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 盤面上のヒントや推論によって得られた「領域」を表すクラス。
- * 不変(Immutable)オブジェクトとして扱う。
+ * 盤面上のヒントや推論によって得られた「領域」を表すクラス.
+ * 不変(Immutable)オブジェクトとして扱う.
  */
 public class Region {
     private final Set<Integer> cells; // この領域に含まれる未確定セルのインデックス集合

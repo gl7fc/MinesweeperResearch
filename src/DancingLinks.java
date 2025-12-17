@@ -103,14 +103,14 @@ public class DancingLinks {
     // Algorithm X
     private void knuthsAlgorithmX(int k) {
         // ★修正: ここにあった制約0の列を削除するループを削除
-        // 再帰のたびにリストを操作するのは危険であり、初期化時に一度行えば十分なため
+        // 再帰のたびにリストを操作するのは危険であり , 初期化時に一度行えば十分なため
 
         if (header.R == header) {
             solutionsCount++;
             finalAnswer = new ArrayList<>(answer);
             return;
         } else {
-            // 制約が1の列（変数決定用の列）の中から、最もノード数が少ない列cを選択
+            // 制約が1の列（変数決定用の列）の中から , 最もノード数が少ない列cを選択
             ColumnNode c = selectColumnNode();
 
             // 選べる列がない場合（制約1の列は全て満たされた）
@@ -120,7 +120,7 @@ public class DancingLinks {
                     solutionsCount++;
                     finalAnswer = new ArrayList<>(answer);
                 }
-                // 制約>1の列が残っている場合は、制約を満たせなかったのでバックトラック
+                // 制約>1の列が残っている場合は , 制約を満たせなかったのでバックトラック
                 return;
             }
 
@@ -208,7 +208,7 @@ public class DancingLinks {
         answer = new LinkedList<Node>();
 
         // ★修正: 制約0の列（最初から満たされている列）を探索開始前にすべてcoverする
-        // リスト操作によるConcurrentModificationExceptionやリンク破壊を防ぐため、一度リストに集める
+        // リスト操作によるConcurrentModificationExceptionやリンク破壊を防ぐため , 一度リストに集める
         List<ColumnNode> zeroConstraintCols = new ArrayList<>();
         for (Node c = header.R; c != header; c = c.R) {
             ColumnNode col = (ColumnNode) c;
@@ -223,7 +223,7 @@ public class DancingLinks {
 
         knuthsAlgorithmX(0);
 
-        // 必要であればここでuncoverして元に戻すが、今回はインスタンス使い捨てなので不要
+        // 必要であればここでuncoverして元に戻すが , 今回はインスタンス使い捨てなので不要
     }
 
     public int[] getAnswer() {
