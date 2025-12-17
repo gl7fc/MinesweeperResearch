@@ -7,6 +7,7 @@ import java.util.*;
  * 1. Lv2/Lv3のRegionは「初期盤面」からのみ生成し、以降は新規生成しない。
  * 2. ラウンド進行時は、既存のLv2/Lv3 Regionをメンテナンス(確定セルの除去)して維持する。
  * 3. Lv1 Regionのみ、毎ラウンド最新の盤面から再生成する。
+ * 4. 出力フォーマットを詳細化 (Regionの中身とSourceを表示)。
  */
 public class TechniqueAnalyzer {
 
@@ -74,7 +75,7 @@ public class TechniqueAnalyzer {
             updateAndGenerateRegions();
 
             // デバッグ出力
-            printRegionPool();
+            // printRegionPool();
 
             // 2. ソルビング (レベル順に試す)
             Map<Integer, Integer> deduced = solveFromPool();
@@ -195,8 +196,7 @@ public class TechniqueAnalyzer {
             return original;
         }
 
-        // 更新された情報で新しいRegionを作成 (IDやソース情報は引き継ぎたいが、ここではシンプルに生成)
-        // 必要なら SourceHint の引き継ぎロジックを入れる
+        // 更新された情報で新しいRegionを作成
         Region updated = new Region(currentCells, currentMines, original.getOriginLevel());
         updated.addSourceHints(parseSourceHints(original.getSourceHintsString()));
 
@@ -292,8 +292,10 @@ public class TechniqueAnalyzer {
                         deducedLevel.put(cell, complexity);
 
                         String type = (valToSet == FLAGGED) ? "MINE" : "SAFE";
+                        // ★修正: 出力フォーマットを詳細化
                         System.out.println("  -> Solved: Cell " + cell + " is " + type +
-                                " (via Region #" + r.getId() + " [Lv" + r.getOriginLevel() + "])");
+                                " (via Region #" + r.getId() + ": " + r + " [Source: " + r.getSourceHintsString()
+                                + "])");
                     } else {
                         if (complexity < deducedLevel.get(cell)) {
                             deducedLevel.put(cell, complexity);
