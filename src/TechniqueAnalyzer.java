@@ -28,6 +28,7 @@ public class TechniqueAnalyzer {
     private final int[] completeBoard; // 正解盤面
     private final int[] difficultyMap; // 結果格納用
     private final int size;
+    private final Set<Integer> initialHints; // 初期ヒントの位置を記録
 
     private Map<Set<Integer>, Region> regionPool; // Regionプール（重複排除用）
 
@@ -41,6 +42,14 @@ public class TechniqueAnalyzer {
         this.difficultyMap = new int[initialBoard.length];
         Arrays.fill(this.difficultyMap, LV_UNSOLVED);
         this.regionPool = new HashMap<>();
+
+        // 初期ヒントの位置を記録
+        this.initialHints = new HashSet<>();
+        for (int i = 0; i < initialBoard.length; i++) {
+            if (initialBoard[i] >= 0) {
+                initialHints.add(i);
+            }
+        }
     }
 
     // =========================================================================
@@ -49,7 +58,7 @@ public class TechniqueAnalyzer {
 
     /**
      * 解析のメインループ
-     * Phase 1: Generate → Phase 2: Solve → Phase 3: Apply を繰り返す
+     * 階層的探索: Lv1で行き詰まったらLv2、Lv2で解けたらLv1に戻る、というように進める
      */
     public void analyze() {
         // 初期ヒントは難易度0
@@ -59,32 +68,71 @@ public class TechniqueAnalyzer {
             }
         }
 
-        boolean changed = true;
         int round = 1;
 
-        while (changed && !isAllSolved()) {
+        while (!isAllSolved()) {
             System.out.println("\n========== Round " + round + " ==========");
 
-            // Phase 1: Generate - Region生成
-            generateAllRegions();
+            // Phase 1: Base Regions (Lv1) のみで解けるだけ解く
+            boolean lv1Changed = true;
+            while (lv1Changed && !isAllSolved()) {
+                // Lv1のRegionだけを生成
+                generateBaseRegions();
 
-            System.out.println("Generated " + regionPool.size() + " unique regions");
+                System.out.println("[Lv1] Generated " + regionPool.size() + " base regions");
+                printRegionPool();
+
+                Map<Integer, Integer> deduced = solveFromPool();
+
+                if (deduced.isEmpty()) {
+                    lv1Changed = false;
+                } else {
+                    System.out.println("[Lv1] Solved " + deduced.size() + " cells");
+                    applyResult(deduced);
+                }
+            }
+
+            if (isAllSolved())
+                break;
+
+            // Phase 2: Lv2 (包含) を試す
+            System.out.println("\n[Lv2] Trying inclusion technique...");
+            generateUpToLevel(LV_2);
+
+            System.out.println("[Lv2] Generated " + regionPool.size() + " regions (Lv1+Lv2)");
             printRegionPool();
 
-            // Phase 2: Solve - 解決可能なセルを探す
-            Map<Integer, Integer> deduced = solveFromPool();
+            Map<Integer, Integer> lv2Deduced = solveFromPool();
 
-            if (deduced.isEmpty()) {
-                System.out.println("No more cells can be solved. Stopping.");
-                changed = false;
-            } else {
-                System.out.println("Solved " + deduced.size() + " cells in this round");
-
-                // Phase 3: Apply - 盤面に反映
-                applyResult(deduced);
-                changed = true;
+            if (!lv2Deduced.isEmpty()) {
+                System.out.println("[Lv2] Solved " + lv2Deduced.size() + " cells");
+                applyResult(lv2Deduced);
                 round++;
+                continue; // Lv1に戻る
             }
+
+            if (isAllSolved())
+                break;
+
+            // Phase 3: Lv3 (共通) を試す
+            System.out.println("\n[Lv3] Trying intersection technique...");
+            generateUpToLevel(LV_3);
+
+            System.out.println("[Lv3] Generated " + regionPool.size() + " regions (Lv1+Lv2+Lv3)");
+            printRegionPool();
+
+            Map<Integer, Integer> lv3Deduced = solveFromPool();
+
+            if (!lv3Deduced.isEmpty()) {
+                System.out.println("[Lv3] Solved " + lv3Deduced.size() + " cells");
+                applyResult(lv3Deduced);
+                round++;
+                continue; // Lv1に戻る
+            }
+
+            // どのレベルでも解けなかった場合は終了
+            System.out.println("\nNo more cells can be solved at any level. Stopping.");
+            break;
         }
 
         System.out.println("\n========== Analysis Complete ==========");
@@ -108,19 +156,32 @@ public class TechniqueAnalyzer {
      * 設計書「3.1. Region生成フェーズ」に準拠
      */
     private void generateAllRegions() {
+        generateUpToLevel(LV_3);
+    }
+
+    /**
+     * 指定されたレベルまでのRegionを生成
+     */
+    private void generateUpToLevel(int maxLevel) {
         regionPool.clear();
 
         // Step 1: Base Regions (Lv1) - 盤面の数字ヒントから生成
-        List<Region> baseRegions = generateBaseRegions();
+        List<Region> baseRegions = generateBaseRegionsInternal();
         for (Region r : baseRegions) {
             addToPool(r);
         }
+
+        if (maxLevel < LV_2)
+            return;
 
         // Step 2: Derived Regions - 包含 (Lv2)
         List<Region> derivedSubtract = generateSubtractionRegions(baseRegions);
         for (Region r : derivedSubtract) {
             addToPool(r);
         }
+
+        if (maxLevel < LV_3)
+            return;
 
         // Step 3: Derived Regions - 共通 (Lv3)
         List<Region> derivedIntersect = generateIntersectionRegions(baseRegions);
@@ -130,17 +191,27 @@ public class TechniqueAnalyzer {
     }
 
     /**
+     * Base Regions生成のみ（外部から呼ばれる用）
+     */
+    private void generateBaseRegions() {
+        regionPool.clear();
+        List<Region> baseRegions = generateBaseRegionsInternal();
+        for (Region r : baseRegions) {
+            addToPool(r);
+        }
+    }
+
+    /**
      * Base Regions生成 (盤面の数字ヒントから)
      */
-    private List<Region> generateBaseRegions() {
+    private List<Region> generateBaseRegionsInternal() {
         List<Region> regions = new ArrayList<>();
 
-        for (int i = 0; i < currentBoard.length; i++) {
-            if (currentBoard[i] >= 0) { // ヒント数字
-                Region r = createRegionFromHint(i, LV_1);
-                if (r != null && !r.getCells().isEmpty()) {
-                    regions.add(r);
-                }
+        // 初期ヒントの位置からのみRegionを生成
+        for (int hintIdx : initialHints) {
+            Region r = createRegionFromHint(hintIdx, LV_1);
+            if (r != null && !r.getCells().isEmpty()) {
+                regions.add(r);
             }
         }
 
