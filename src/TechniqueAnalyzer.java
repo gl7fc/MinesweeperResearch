@@ -1,245 +1,163 @@
 import java.util.*;
 
 /**
- * 盤面全体の状態を管理し、推論のステップを進めるクラス。
- * 「Region事前全列挙モデル」に基づき実装。
+ * Region事前全列挙モデルによる難易度解析クラス
+ * 詳細設計書「2.2. TechniqueAnalyzer クラス」および「3. アルゴリズム詳細」に基づき実装
  */
 public class TechniqueAnalyzer {
 
     // =========================================================================
     // 定数定義
     // =========================================================================
-    private static final int MINE = -1;
-    private static final int IGNORE = -2;
-    private static final int FLAGGED = -3;
-    private static final int SAFE = -4;
+    private static final int MINE = -1; // 未確定変数
+    private static final int IGNORE = -2; // 計算対象外
+    private static final int FLAGGED = -3; // 地雷確定
+    private static final int SAFE = -4; // 安全確定（一時的に使用）
 
-    // 難易度定数
+    // 難易度レベル定数
     public static final int LV_UNSOLVED = -1;
-    public static final int LV_1_1 = 1; // 埋めるだけ
-    public static final int LV_1_2 = 2; // 包含 (初期盤面等の単純なもの) - 今回はLv1-3に統合
-    public static final int LV_1_3 = 3; // 包含 (推論全般)
-    public static final int LV_1_4 = 4; // 共通
+    public static final int LV_0 = 0; // 初期ヒント
+    public static final int LV_1 = 1; // Base Hint (単純)
+    public static final int LV_2 = 2; // 包含テクニック
+    public static final int LV_3 = 3; // 共通テクニック
 
     // =========================================================================
     // フィールド
     // =========================================================================
-    private int[] board;
-    private final int[] completeBoard;
-    private final int[] difficultyMap;
+    private int[] currentBoard; // 現在の盤面状態
+    private final int[] completeBoard; // 正解盤面
+    private final int[] difficultyMap; // 結果格納用
     private final int size;
 
-    // 生成されたすべてのRegionを保持するプール
-    private List<Region> regionPool;
+    private Map<Set<Integer>, Region> regionPool; // Regionプール（重複排除用）
 
-    public TechniqueAnalyzer(int[] currentBoard, int[] solution, int size) {
-        this.board = Arrays.copyOf(currentBoard, currentBoard.length);
+    // =========================================================================
+    // コンストラクタ
+    // =========================================================================
+    public TechniqueAnalyzer(int[] initialBoard, int[] solution, int size) {
+        this.currentBoard = Arrays.copyOf(initialBoard, initialBoard.length);
         this.completeBoard = solution;
         this.size = size;
-        this.difficultyMap = new int[currentBoard.length];
+        this.difficultyMap = new int[initialBoard.length];
         Arrays.fill(this.difficultyMap, LV_UNSOLVED);
-        this.regionPool = new ArrayList<>();
+        this.regionPool = new HashMap<>();
     }
 
+    // =========================================================================
+    // 公開メソッド
+    // =========================================================================
+
     /**
-     * 解析のメインループ。
+     * 解析のメインループ
+     * Phase 1: Generate → Phase 2: Solve → Phase 3: Apply を繰り返す
      */
     public void analyze() {
+        // 初期ヒントは難易度0
+        for (int i = 0; i < currentBoard.length; i++) {
+            if (currentBoard[i] >= 0) {
+                difficultyMap[i] = LV_0;
+            }
+        }
+
         boolean changed = true;
         int round = 1;
 
-        // 初期ヒントは難易度0
-        for (int i = 0; i < board.length; i++) {
-            if (board[i] >= 0)
-                difficultyMap[i] = 0;
-        }
+        while (changed && !isAllSolved()) {
+            System.out.println("\n========== Round " + round + " ==========");
 
-        while (changed) {
-            changed = false;
-            System.out.println("\n--- Round " + round + " Start ---");
-
-            printCurrentBoard("Start of Round " + round);
-
-            // 1. 全Region生成 (Lv0, Lv1-3, Lv1-4...)
+            // Phase 1: Generate - Region生成
             generateAllRegions();
 
-            // デバッグ出力
+            System.out.println("Generated " + regionPool.size() + " unique regions");
             printRegionPool();
 
-            // 2. ソルビング (最も低いレベルで解けるものを適用)
+            // Phase 2: Solve - 解決可能なセルを探す
             Map<Integer, Integer> deduced = solveFromPool();
 
-            if (!deduced.isEmpty()) {
-                System.out.println("Round " + round + ": Found " + deduced.size() + " cells.");
+            if (deduced.isEmpty()) {
+                System.out.println("No more cells can be solved. Stopping.");
+                changed = false;
+            } else {
+                System.out.println("Solved " + deduced.size() + " cells in this round");
+
+                // Phase 3: Apply - 盤面に反映
                 applyResult(deduced);
                 changed = true;
                 round++;
             }
         }
+
+        System.out.println("\n========== Analysis Complete ==========");
+        if (isAllSolved()) {
+            System.out.println("All cells solved!");
+        } else {
+            System.out.println("Some cells remain unsolved (may require Lv4+ techniques)");
+        }
     }
 
+    public int[] getDifficultyMap() {
+        return difficultyMap;
+    }
+
+    // =========================================================================
+    // Phase 1: Region生成フェーズ
+    // =========================================================================
+
     /**
-     * 現在の盤面から、あらゆる可能性のあるRegionを生成しプールする。
+     * 現在の盤面から全てのRegionを生成し、プールに追加する
+     * 設計書「3.1. Region生成フェーズ」に準拠
      */
     private void generateAllRegions() {
         regionPool.clear();
 
-        // 1. Base Regions (Lv0: 盤面のヒント由来)
-        List<Region> baseRegions = new ArrayList<>();
-        for (int i = 0; i < board.length; i++) {
-            if (board[i] >= 0) {
-                Region r = createRegionFromHint(i);
-                if (r != null) {
-                    baseRegions.add(r);
-                }
-            }
-        }
-        regionPool.addAll(baseRegions);
-
-        // 2. Derived Regions (Lv1-3: 包含テクニック由来)
-        // Base Region同士を総当たりで比較
-        for (Region rA : baseRegions) {
-            for (Region rB : baseRegions) {
-                if (rA == rB)
-                    continue;
-
-                // 包含判定: rA ⊂ rB
-                if (rA.isSubsetOf(rB)) {
-                    // 差分領域 D = rB - rA
-                    // レベルは Lv1-3 (包含) とする
-                    Region diff = rB.subtract(rA, LV_1_3);
-
-                    if (!diff.getCells().isEmpty()) {
-                        // 重複チェックして追加 (Set等を使うとより効率的)
-                        if (!regionPool.contains(diff)) {
-                            regionPool.add(diff);
-                        }
-                    }
-                }
-            }
+        // Step 1: Base Regions (Lv1) - 盤面の数字ヒントから生成
+        List<Region> baseRegions = generateBaseRegions();
+        for (Region r : baseRegions) {
+            addToPool(r);
         }
 
-        // 3. Derived Regions (Lv1-4: 共通テクニック由来)
-        // Base Region同士を総当たりで比較
-        for (int i = 0; i < baseRegions.size(); i++) {
-            for (int j = i + 1; j < baseRegions.size(); j++) {
-                Region rA = baseRegions.get(i);
-                Region rB = baseRegions.get(j);
+        // Step 2: Derived Regions - 包含 (Lv2)
+        List<Region> derivedSubtract = generateSubtractionRegions(baseRegions);
+        for (Region r : derivedSubtract) {
+            addToPool(r);
+        }
 
-                // --- 包含判定 (Lv1-3) ---
-                // rA ⊂ rB
-                if (rA.isSubsetOf(rB)) {
-                    Region diff = rB.subtract(rA, LV_1_3);
-                    if (!diff.getCells().isEmpty()) {
-                        regionPool.add(diff);
-                    }
-                }
-                // rB ⊂ rA
-                else if (rB.isSubsetOf(rA)) {
-                    Region diff = rA.subtract(rB, LV_1_3);
-                    if (!diff.getCells().isEmpty()) {
-                        regionPool.add(diff);
-                    }
-                }
-                // --- 共通判定 (Lv1-4) ---
-                // 包含関係がない場合のみ実行
-                else {
-                    Set<Region> intersections = rA.intersect(rB, LV_1_4);
-                    regionPool.addAll(intersections);
-                }
-            }
+        // Step 3: Derived Regions - 共通 (Lv3)
+        List<Region> derivedIntersect = generateIntersectionRegions(baseRegions);
+        for (Region r : derivedIntersect) {
+            addToPool(r);
         }
     }
 
     /**
-     * プールされたRegionを使って確定できるセルを探す。
-     * 低いレベルのRegionを優先して適用する。
+     * Base Regions生成 (盤面の数字ヒントから)
      */
-    private Map<Integer, Integer> solveFromPool() {
-        Map<Integer, Integer> deduced = new HashMap<>();
-        Map<Integer, Integer> deducedLevel = new HashMap<>(); // 各セルがどのレベルで解けたか
+    private List<Region> generateBaseRegions() {
+        List<Region> regions = new ArrayList<>();
 
-        // レベル順(昇順)にソートして処理することで、
-        // Lv0(Lv1-1相当) -> Lv1-3(包含) -> Lv1-4(共通) の順に判定される
-        regionPool.sort(Comparator.comparingInt(Region::getOriginLevel));
-
-        for (Region r : regionPool) {
-            boolean determined = false;
-            int valToSet = -99;
-
-            // Lv1-1 ロジック (埋めるだけ)
-            if (r.getMines() == r.size()) {
-                determined = true;
-                valToSet = FLAGGED;
-            } else if (r.getMines() == 0) {
-                determined = true;
-                valToSet = SAFE;
-            }
-
-            if (determined) {
-                // 確定した難易度レベル
-                // 基本は Lv1-1(1) だが、Region自体が高度なテクニック(Lv3, 4)で作られていればそれを採用
-                int complexity = Math.max(LV_1_1, r.getOriginLevel());
-
-                for (int cell : r.getCells()) {
-                    // まだ解けていない、または より低いレベルで解けることが判明した場合
-                    if (!deduced.containsKey(cell)) {
-                        deduced.put(cell, valToSet);
-                        deducedLevel.put(cell, complexity);
-
-                        String type = (valToSet == FLAGGED) ? "MINE" : "SAFE";
-                        // 根拠となるRegion情報を出力に追加
-                        System.out.println("  -> Solved: Cell " + cell + " is " + type +
-                                " (via Region Lv" + r.getOriginLevel() + ": " + r + ")");
-                    } else {
-                        // 既に解けている場合、より低いレベルなら更新する（理論上ソートしてるので起きにくいが念のため）
-                        if (complexity < deducedLevel.get(cell)) {
-                            deducedLevel.put(cell, complexity);
-                        }
-                    }
+        for (int i = 0; i < currentBoard.length; i++) {
+            if (currentBoard[i] >= 0) { // ヒント数字
+                Region r = createRegionFromHint(i, LV_1);
+                if (r != null && !r.getCells().isEmpty()) {
+                    regions.add(r);
                 }
             }
         }
 
-        // 難易度マップへの反映 (まだ未確定の場所のみ)
-        for (Map.Entry<Integer, Integer> entry : deducedLevel.entrySet()) {
-            int cell = entry.getKey();
-            int lvl = entry.getValue();
-            if (difficultyMap[cell] == LV_UNSOLVED) {
-                difficultyMap[cell] = lvl;
-            }
-        }
-
-        return deduced;
+        return regions;
     }
 
     /**
-     * 推論結果を盤面に適用する。
+     * ヒント位置からRegionを生成
      */
-    private void applyResult(Map<Integer, Integer> deduced) {
-        for (Map.Entry<Integer, Integer> entry : deduced.entrySet()) {
-            int cellIdx = entry.getKey();
-            int val = entry.getValue();
-
-            // 正解盤面から実際の数字を取得 (SAFEの場合)
-            if (val == SAFE) {
-                val = completeBoard[cellIdx];
-            }
-
-            board[cellIdx] = val;
-        }
-        // applyResult後に自動的にループ先頭に戻り generateAllRegions が呼ばれるため
-        // ここでのRegion更新は不要
-    }
-
-    private Region createRegionFromHint(int hintIdx) {
-        int hintVal = board[hintIdx];
+    private Region createRegionFromHint(int hintIdx, int level) {
+        int hintVal = currentBoard[hintIdx];
         List<Integer> neighbors = getNeighbors(hintIdx);
         Set<Integer> unknownCells = new HashSet<>();
         int flaggedCount = 0;
 
         for (int nb : neighbors) {
-            int val = board[nb];
+            int val = currentBoard[nb];
             if (val == MINE) {
                 unknownCells.add(nb);
             } else if (val == FLAGGED) {
@@ -247,64 +165,245 @@ public class TechniqueAnalyzer {
             }
         }
 
-        if (unknownCells.isEmpty())
+        if (unknownCells.isEmpty()) {
             return null;
+        }
+
         int remainingMines = hintVal - flaggedCount;
-        return new Region(unknownCells, remainingMines, 0); // Lv0 = Base Hint
+
+        // ソースヒントを記録
+        Set<Integer> sourceHints = new HashSet<>();
+        sourceHints.add(hintIdx);
+
+        return new Region(unknownCells, remainingMines, level, sourceHints);
     }
 
+    /**
+     * 包含関係から差分Regionを生成 (Lv2)
+     */
+    private List<Region> generateSubtractionRegions(List<Region> baseRegions) {
+        List<Region> derived = new ArrayList<>();
+
+        // 全ペアについて包含関係をチェック
+        for (int i = 0; i < baseRegions.size(); i++) {
+            Region rA = baseRegions.get(i);
+            for (int j = 0; j < baseRegions.size(); j++) {
+                if (i == j)
+                    continue;
+                Region rB = baseRegions.get(j);
+
+                // A ⊂ B の場合、差分 D = B - A を生成
+                if (rA.isSubsetOf(rB)) {
+                    Region diff = rB.subtract(rA, LV_2);
+
+                    // 空でなく、論理的に妥当な場合のみ追加
+                    if (!diff.getCells().isEmpty() &&
+                            diff.getMines() >= 0 &&
+                            diff.getMines() <= diff.size()) {
+                        derived.add(diff);
+                    }
+                }
+            }
+        }
+
+        return derived;
+    }
+
+    /**
+     * 共通部分から新しいRegionを生成 (Lv3)
+     */
+    private List<Region> generateIntersectionRegions(List<Region> baseRegions) {
+        List<Region> derived = new ArrayList<>();
+
+        // 全ペアについて共通部分をチェック
+        for (int i = 0; i < baseRegions.size(); i++) {
+            Region rA = baseRegions.get(i);
+            for (int j = i + 1; j < baseRegions.size(); j++) {
+                Region rB = baseRegions.get(j);
+
+                // 包含関係がある場合はスキップ（Lv2で処理済み）
+                if (rA.isSubsetOf(rB) || rB.isSubsetOf(rA)) {
+                    continue;
+                }
+
+                // 共通部分を持つ場合、intersectメソッドで新Regionを生成
+                Set<Region> intersectResults = rA.intersect(rB, LV_3);
+                derived.addAll(intersectResults);
+            }
+        }
+
+        return derived;
+    }
+
+    /**
+     * Regionをプールに追加（重複排除・レベル優先）
+     * 同じ制約内容なら、より低いレベルのものを優先
+     */
+    private void addToPool(Region newRegion) {
+        Set<Integer> key = newRegion.getCells();
+
+        if (regionPool.containsKey(key)) {
+            Region existing = regionPool.get(key);
+            // 同じセル集合で同じ地雷数の場合のみ比較
+            if (existing.getMines() == newRegion.getMines()) {
+                // より低いレベルを優先
+                if (newRegion.getOriginLevel() < existing.getOriginLevel()) {
+                    regionPool.put(key, newRegion);
+                }
+            } else {
+                // 地雷数が異なる場合は別のRegionとして扱う（キーを変える必要がある）
+                // ここでは簡易的に、cells+minesをキーとするため、別途格納
+                // ※設計書では「cellsとminesで等価性判定」とあるため、実際にはこのケースは発生しないはず
+            }
+        } else {
+            regionPool.put(key, newRegion);
+        }
+    }
+
+    // =========================================================================
+    // Phase 2: 解決フェーズ
+    // =========================================================================
+
+    // 解決に使用したRegionを記録するマップ
+    private Map<Integer, Integer> cellToRegionIndex = new HashMap<>();
+
+    /**
+     * プール内のRegionをレベル順に試し、解けるセルを探す
+     * 設計書「3.2. 解決フェーズ」に準拠
+     */
+    private Map<Integer, Integer> solveFromPool() {
+        Map<Integer, Integer> deduced = new HashMap<>();
+        cellToRegionIndex.clear();
+
+        // レベル順にソート
+        List<Region> sortedRegions = new ArrayList<>(regionPool.values());
+        sortedRegions.sort(Comparator.comparingInt(Region::getOriginLevel));
+
+        // ソートされた順にRegionを試す
+        for (int regionIdx = 0; regionIdx < sortedRegions.size(); regionIdx++) {
+            Region region = sortedRegions.get(regionIdx);
+
+            // mines == cells.size() → 全地雷
+            if (region.getMines() == region.size()) {
+                for (int cell : region.getCells()) {
+                    if (!deduced.containsKey(cell) && currentBoard[cell] == MINE) {
+                        deduced.put(cell, FLAGGED);
+                        cellToRegionIndex.put(cell, regionIdx);
+                        // 難易度を記録（最小レベルを採用）
+                        int level = Math.max(LV_1, region.getOriginLevel());
+                        if (difficultyMap[cell] == LV_UNSOLVED) {
+                            difficultyMap[cell] = level;
+                        }
+                    }
+                }
+            }
+            // mines == 0 → 全安全
+            else if (region.getMines() == 0) {
+                for (int cell : region.getCells()) {
+                    if (!deduced.containsKey(cell) && currentBoard[cell] == MINE) {
+                        deduced.put(cell, SAFE);
+                        cellToRegionIndex.put(cell, regionIdx);
+                        // 難易度を記録（最小レベルを採用）
+                        int level = Math.max(LV_1, region.getOriginLevel());
+                        if (difficultyMap[cell] == LV_UNSOLVED) {
+                            difficultyMap[cell] = level;
+                        }
+                    }
+                }
+            }
+        }
+
+        return deduced;
+    }
+
+    // =========================================================================
+    // Phase 3: 更新フェーズ
+    // =========================================================================
+
+    /**
+     * 確定したセルを盤面に反映
+     * 設計書「3.3. 更新フェーズ」に準拠
+     */
+    private void applyResult(Map<Integer, Integer> deduced) {
+        for (Map.Entry<Integer, Integer> entry : deduced.entrySet()) {
+            int cellIdx = entry.getKey();
+            int val = entry.getValue();
+
+            // 使用したRegion番号を取得
+            Integer regionIdx = cellToRegionIndex.get(cellIdx);
+            String regionInfo = (regionIdx != null) ? " using Region[" + regionIdx + "]" : "";
+
+            // SAFEの場合は正解盤面から実際の数字を取得
+            String displayVal;
+            if (val == SAFE) {
+                val = completeBoard[cellIdx];
+                displayVal = "SAFE";
+            } else {
+                displayVal = "MINE";
+            }
+
+            currentBoard[cellIdx] = val;
+
+            System.out.println("  Applied: Cell " + cellIdx + " = " + displayVal +
+                    " (Level " + difficultyMap[cellIdx] + ")" + regionInfo);
+        }
+    }
+
+    // =========================================================================
+    // ユーティリティメソッド
+    // =========================================================================
+
+    /**
+     * 周囲8セルの座標を取得
+     */
     private List<Integer> getNeighbors(int idx) {
         List<Integer> list = new ArrayList<>();
         int r = idx / size;
         int c = idx % size;
+
         for (int dr = -1; dr <= 1; dr++) {
             for (int dc = -1; dc <= 1; dc++) {
                 if (dr == 0 && dc == 0)
                     continue;
+
                 int nr = r + dr;
                 int nc = c + dc;
+
                 if (nr >= 0 && nr < size && nc >= 0 && nc < size) {
                     list.add(nr * size + nc);
                 }
             }
         }
+
         return list;
     }
 
-    public int[] getDifficultyMap() {
-        return difficultyMap;
+    /**
+     * 全てのセルが解決済みか判定
+     */
+    private boolean isAllSolved() {
+        for (int val : currentBoard) {
+            if (val == MINE)
+                return false;
+        }
+        return true;
     }
 
+    /**
+     * Regionプールの内容を表示（デバッグ用）
+     */
     private void printRegionPool() {
-        System.out.println("--- Region Pool ---");
-        // ソートして出力
-        List<Region> sortedPool = new ArrayList<>(regionPool);
-        sortedPool.sort(Comparator.comparingInt(Region::getOriginLevel));
-        for (Region r : sortedPool) {
-            System.out.println(r);
+        if (regionPool.isEmpty()) {
+            System.out.println("  (Pool is empty)");
+            return;
         }
-    }
 
-    public void printCurrentBoard(String label) {
-        System.out.println("--- Board State [" + label + "] ---");
-        for (int i = 0; i < board.length; i++) {
-            int val = board[i];
-            if (val == MINE) {
-                System.out.print(" ? ");
-            } else if (val == FLAGGED) {
-                System.out.print(" F ");
-            } else if (val == SAFE) {
-                System.out.print(" S ");
-            } else if (val == IGNORE) {
-                System.out.print(" - ");
-            } else {
-                System.out.printf(" %d ", val);
-            }
+        List<Region> sorted = new ArrayList<>(regionPool.values());
+        sorted.sort(Comparator.comparingInt(Region::getOriginLevel));
 
-            if ((i + 1) % size == 0) {
-                System.out.println();
-            }
+        for (int i = 0; i < sorted.size(); i++) {
+            Region r = sorted.get(i);
+            System.out.println("  [" + i + "]: " + r.toString());
         }
-        System.out.println("-----------------------------------");
     }
 }
