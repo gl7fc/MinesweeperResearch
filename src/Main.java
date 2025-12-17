@@ -45,7 +45,7 @@ public class Main {
             // ---------------------------------------------------
             // 1. HintCountCalculator を使用して難易度を判定 (既存)
             // ---------------------------------------------------
-            // System.out.println("\n--- [HintCountCalculator] 難易度解析実行中... ---");
+            System.out.println("\n--- [HintCountCalculator] 難易度解析実行中... ---");
 
             // puzzle: 問題, board: 正解, size: サイズ
             HintCountCalculator calculator = new HintCountCalculator(puzzle, board, size);
@@ -57,14 +57,14 @@ public class Main {
             int[] difficulties = calculator.getDifficultyMap();
 
             // 結果表示
-            // System.out.println("--- 解析結果 (k-Hint) ---");
-            // System.out.println(" [数字]: そのセルを解くのに必要だったヒント数(k)");
-            // printAnalysis(puzzle, difficulties, size);
+            System.out.println("--- 解析結果 (k-Hint) ---");
+            System.out.println(" [数字]: そのセルを解くのに必要だったヒント数(k)");
+            printAnalysis(puzzle, difficulties, size);
 
             // ---------------------------------------------------
             // 2. TechniqueAnalyzer を使用して難易度を判定 (新規追加)
             // ---------------------------------------------------
-            // System.out.println("\n--- [TechniqueAnalyzer] テクニック解析実行中... ---");
+            System.out.println("\n--- [TechniqueAnalyzer] テクニック解析実行中... ---");
 
             TechniqueAnalyzer analyzer = new TechniqueAnalyzer(puzzle, board, size);
 
@@ -75,12 +75,12 @@ public class Main {
             int[] taDifficulties = analyzer.getDifficultyMap();
 
             // 結果表示
-            System.out.println("--- 解析結果 (Technique Level) ---");
-            System.out.println(" [ 1 ]: Lv1-1 (埋めるだけ)");
-            System.out.println(" [ 2 ]: Lv1-2 (包含:確定) - 廃止(Lv1-3へ統合)");
-            System.out.println(" [ 3 ]: Lv1-3 (包含:情報) - Lv1-3を経由してLv1-1で解けた場合");
-            System.out.println(" [ 4 ]: Lv1-4 (共通)");
-            System.out.println(" [ * ]: 論理的に確定できなかったセル (Lv2未実装含む)\n");
+            System.out.println("\n--- 解析結果 (Technique Level) ---");
+            System.out.println(" [ 0 ]: 初期ヒント");
+            System.out.println(" [ 1 ]: Lv1 (Base Hint - 単純な埋め込み)");
+            System.out.println(" [ 2 ]: Lv2 (包含テクニック - 差分領域)");
+            System.out.println(" [ 3 ]: Lv3 (共通テクニック - 共通部分の地雷数確定)");
+            System.out.println(" [ * ]: 論理的に確定できなかったセル (Lv4以上が必要)\n");
 
             printAnalysis(puzzle, taDifficulties, size);
         }
