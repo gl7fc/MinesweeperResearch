@@ -17,6 +17,9 @@ public class HintCountCalculator {
     private int size;
     private int[] difficultyMap; // 結果格納用 (各セルの難易度k)
 
+    // ★追加: 各セルの確定に必要なヒントのリストを保持
+    private Map<Integer, Set<Integer>> requiredHintsMap;
+
     /**
      * コンストラクタ
      * 
@@ -30,6 +33,9 @@ public class HintCountCalculator {
         this.size = size;
         this.difficultyMap = new int[puzzle.length];
         Arrays.fill(this.difficultyMap, -1); // 初期値 -1 (未解決)
+
+        // ★追加: 必要ヒントマップの初期化
+        this.requiredHintsMap = new HashMap<>();
     }
 
     /**
@@ -43,6 +49,8 @@ public class HintCountCalculator {
         for (int i = 0; i < currentBoard.length; i++) {
             if (currentBoard[i] >= 0) {
                 difficultyMap[i] = 0;
+                // ★追加: 初期ヒントは必要ヒントなし（既に開示されているため）
+                requiredHintsMap.put(i, new HashSet<>());
             }
         }
 
@@ -64,6 +72,26 @@ public class HintCountCalculator {
      */
     public int[] getDifficultyMap() {
         return difficultyMap;
+    }
+
+    /**
+     * ★追加: 指定されたセルの確定に必要なヒントのリストを取得
+     * 
+     * @param cellIndex 対象セルのインデックス
+     * @return 必要なヒントのインデックス集合（セルが未解析の場合は空集合）
+     */
+    public Set<Integer> getRequiredHints(int cellIndex) {
+        if (requiredHintsMap.containsKey(cellIndex)) {
+            return new HashSet<>(requiredHintsMap.get(cellIndex)); // コピーを返す
+        }
+        return new HashSet<>(); // 未解析の場合は空集合
+    }
+
+    /**
+     * ★追加: 全セルの必要ヒントマップを取得（デバッグ用）
+     */
+    public Map<Integer, Set<Integer>> getAllRequiredHints() {
+        return new HashMap<>(requiredHintsMap);
     }
 
     /**
@@ -92,6 +120,9 @@ public class HintCountCalculator {
         // 2. 組み合わせ生成と推論
         Set<Integer> roundSolved = new HashSet<>(); // このラウンドで確定したセル(重複防止)
 
+        // ★追加: このラウンドで確定したセルとその必要ヒント集合を記録
+        Map<Integer, Set<Integer>> roundRequiredHints = new HashMap<>();
+
         // k個のヒントの組み合わせを全列挙
         Iterable<List<Integer>> combinations = getCombinations(hintIndices, k);
 
@@ -109,22 +140,45 @@ public class HintCountCalculator {
             // 確定情報を収集 (roundSolvedに追加)
             for (Map.Entry<Integer, Integer> entry : deduced.entrySet()) {
                 int cellIdx = entry.getKey();
-                // int determinedVal = entry.getValue();
 
                 // 既にこのラウンドで処理済みでなければ
                 if (!roundSolved.contains(cellIdx)) {
-                    // ここで盤面更新はせず , セットに追加のみ
                     roundSolved.add(cellIdx);
 
                     // 難易度記録 (初めて解けた場合のみ)
                     if (difficultyMap[cellIdx] == -1) {
                         difficultyMap[cellIdx] = k;
                     }
+
+                    // ★追加: 必要ヒント集合を記録
+                    // このセルがまだ記録されていない、または
+                    // より少ないヒント数で確定できる場合は更新
+                    if (!roundRequiredHints.containsKey(cellIdx)) {
+                        roundRequiredHints.put(cellIdx, new HashSet<>(subset));
+                    } else {
+                        // 既に記録されている場合、より小さいヒント集合を保持
+                        Set<Integer> existing = roundRequiredHints.get(cellIdx);
+                        if (subset.size() < existing.size()) {
+                            roundRequiredHints.put(cellIdx, new HashSet<>(subset));
+                        }
+                    }
                 }
             }
         }
 
-        // 3. 盤面の一括更新
+        // 3. 必要ヒントマップに記録
+        for (Map.Entry<Integer, Set<Integer>> entry : roundRequiredHints.entrySet()) {
+            int cellIdx = entry.getKey();
+            Set<Integer> hints = entry.getValue();
+
+            // まだ記録されていないか、より少ないヒント数の場合のみ更新
+            if (!requiredHintsMap.containsKey(cellIdx) ||
+                    hints.size() < requiredHintsMap.get(cellIdx).size()) {
+                requiredHintsMap.put(cellIdx, hints);
+            }
+        }
+
+        // 4. 盤面の一括更新
         for (int cellIdx : roundSolved) {
             int trueVal = completeBoard[cellIdx];
             if (trueVal == -1) {
