@@ -1,4 +1,5 @@
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * 盤面全体の状態を管理し , 推論のステップを進めるクラス.
@@ -308,7 +309,7 @@ public class TechniqueAnalyzer {
 
         updateDifficultyMap(deducedLevel);
 
-        // ★Phase 1: Lv4推論の呼び出し（現在はコメントアウト）
+        // ★Phase 2: Lv4推論の呼び出し（有効化）
         if (deduced.isEmpty()) {
             deduced = solveWithContradiction();
             if (!deduced.isEmpty()) {
@@ -324,11 +325,11 @@ public class TechniqueAnalyzer {
     }
 
     // =========================================================================
-    // ★Phase 1: Lv4推論のメソッド群
+    // ★Phase 1-2: Lv4推論のメソッド群
     // =========================================================================
 
     /**
-     * ★Phase 1: Lv4推論のメイン処理（背理法）
+     * ★Phase 1-2: Lv4推論のメイン処理（背理法）
      * 
      * Lv1-3で解けなかった場合に呼び出される.
      * 未確定セルに対して「MINE」「SAFE」の仮定を立て、
@@ -356,17 +357,155 @@ public class TechniqueAnalyzer {
             System.out.println("  [Lv4] Testing cell " + cell +
                     " (" + (i + 1) + "/" + candidates.size() + ")");
 
-            // TODO Phase 2: 必要ヒント抽出、DLX検証の実装
-            // Set<Integer> requiredHints = extractRequiredHints(cell);
-            // boolean mineValid = testAssumptionWithDLX(requiredHints, cell, FLAGGED);
-            // boolean safeValid = testAssumptionWithDLX(requiredHints, cell, SAFE);
+            // ★Phase 2: 必要ヒント抽出（モック版）
+            Set<Integer> requiredHints = extractRequiredHintsMock(cell);
 
-            // 現在はスケルトンのみ
-            System.out.println("    [Phase 1] Skeleton only - no actual testing yet");
+            if (requiredHints.isEmpty()) {
+                System.out.println("    No required hints found, skipping...");
+                continue;
+            }
+
+            String hintsStr = requiredHints.stream()
+                    .sorted()
+                    .map(String::valueOf)
+                    .collect(Collectors.joining(","));
+            System.out.println("    Required hints: " + hintsStr);
+
+            // ★Phase 2: 仮定1 - MINE
+            System.out.println("    Testing: cell = MINE");
+            boolean mineValid = testAssumptionWithDLX(requiredHints, cell, FLAGGED);
+            System.out.println("      → " + (mineValid ? "Valid (has solution)" : "CONTRADICTION (no solution)"));
+
+            // ★Phase 2: 仮定2 - SAFE
+            System.out.println("    Testing: cell = SAFE");
+            boolean safeValid = testAssumptionWithDLX(requiredHints, cell, SAFE);
+            System.out.println("      → " + (safeValid ? "Valid (has solution)" : "CONTRADICTION (no solution)"));
+
+            // 結果判定
+            if (!mineValid && safeValid) {
+                // MINE仮定が矛盾 → SAFE確定
+                System.out.println("  [Lv4] ★ Cell " + cell + " = SAFE (MINE leads to contradiction)");
+
+                Map<Integer, Integer> result = new HashMap<>();
+                result.put(cell, SAFE);
+
+                logger.logStep(currentRound, cell, "SAFE", LV_4,
+                        -1, "Contradiction(MINE→×)", hintsStr);
+
+                return result;
+
+            } else if (mineValid && !safeValid) {
+                // SAFE仮定が矛盾 → MINE確定
+                System.out.println("  [Lv4] ★ Cell " + cell + " = MINE (SAFE leads to contradiction)");
+
+                Map<Integer, Integer> result = new HashMap<>();
+                result.put(cell, FLAGGED);
+
+                logger.logStep(currentRound, cell, "MINE", LV_4,
+                        -1, "Contradiction(SAFE→×)", hintsStr);
+
+                return result;
+
+            } else if (!mineValid && !safeValid) {
+                // 両方矛盾（エラー）
+                System.err.println("  [Lv4] ERROR: Both assumptions lead to contradiction for cell " + cell);
+
+            } else {
+                // 両方valid → 確定できない
+                System.out.println("  [Lv4] Cell " + cell + " cannot be determined");
+            }
         }
 
-        System.out.println("  [Lv4] No cells determined (Phase 1: skeleton only)");
+        System.out.println("  [Lv4] No cells determined");
         return new HashMap<>();
+    }
+
+    /**
+     * ★Phase 2: 必要ヒント抽出（モック版）
+     * Phase 3で実際のHintCountCalculatorに置き換える
+     */
+    private Set<Integer> extractRequiredHintsMock(int cellIndex) {
+        // モック: セルの周囲にあるヒントを返す
+        Set<Integer> hints = new HashSet<>();
+        List<Integer> neighbors = getNeighbors(cellIndex);
+
+        for (int nb : neighbors) {
+            if (board[nb] >= 0) { // ヒントセル
+                hints.add(nb);
+            }
+        }
+
+        // 最大3個まで（効率のため）
+        if (hints.size() > 3) {
+            List<Integer> list = new ArrayList<>(hints);
+            hints.clear();
+            for (int i = 0; i < 3; i++) {
+                hints.add(list.get(i));
+            }
+        }
+
+        return hints;
+    }
+
+    /**
+     * ★Phase 2: DLXによる仮定の検証
+     * 
+     * 指定された仮定のもとで解が存在するかを判定する.
+     * 
+     * @param requiredHints 必要なヒント集合
+     * @param targetCell    仮定する対象セル
+     * @param assumedValue  仮定する値（FLAGGED or SAFE）
+     * @return 解が存在するか（true: 矛盾しない, false: 矛盾する）
+     */
+    private boolean testAssumptionWithDLX(
+            Set<Integer> requiredHints,
+            int targetCell,
+            int assumedValue) {
+
+        // 1. 必要ヒントの周囲セルを収集（関連する全セル）
+        Set<Integer> relevantCells = new HashSet<>();
+        relevantCells.add(targetCell); // 対象セルも含む
+
+        for (int hintIdx : requiredHints) {
+            List<Integer> neighbors = getNeighbors(hintIdx);
+            relevantCells.addAll(neighbors);
+        }
+
+        // 2. テスト盤面を作成（関連セルのみ、それ以外はIGNORE）
+        int[] testBoard = new int[board.length];
+        Arrays.fill(testBoard, IGNORE);
+
+        // 3. 必要ヒントをコピー
+        for (int hintIdx : requiredHints) {
+            testBoard[hintIdx] = board[hintIdx];
+        }
+
+        // 4. 関連セルの状態をコピー
+        for (int cellIdx : relevantCells) {
+            if (cellIdx == targetCell) {
+                // 対象セルには仮定を適用
+                testBoard[cellIdx] = assumedValue;
+            } else {
+                // その他のセルは現在の盤面状態をコピー
+                // MINE（未確定）, FLAGGED（地雷確定）, SAFE（安全確定）など
+                testBoard[cellIdx] = board[cellIdx];
+            }
+        }
+
+        // 5. ConstraintBuilderで制約行列化
+        ConstraintBuilder cb = new ConstraintBuilder(testBoard, size);
+        ConstraintBuilder.Data data = cb.buildConstraints();
+
+        // 変数が存在しない場合（全て確定済み）は矛盾なしとみなす
+        if (data.blanks == 0) {
+            return true;
+        }
+
+        // 6. DLXで解の有無を判定
+        DancingLinks dlx = new DancingLinks(data.matrix, data.constraint);
+        dlx.runSolver();
+
+        return dlx.SolutionsCount(0) > 0;
     }
 
     /**

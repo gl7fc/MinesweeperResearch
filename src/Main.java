@@ -108,7 +108,7 @@ public class Main {
             else {
                 int level = difficulties[i];
                 if (level == -1) {
-                    System.out.print(" 4 "); // 未解決
+                    System.out.print(" * "); // 未解決
                 } else {
                     System.out.printf(" %d ", level); // 難易度/レベル
                 }
