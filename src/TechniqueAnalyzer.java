@@ -8,6 +8,7 @@ import java.util.*;
  * 2. ラウンド進行時は , 既存のLv2/Lv3 Regionをメンテナンス(確定セルの除去)して維持する.
  * 3. Lv1 Regionのみ , 毎ラウンド最新の盤面から再生成する.
  * 4. AnalysisLogger によるCSV出力機能を追加.
+ * 5. ★Phase 1: Lv4推論の基盤整備（スケルトンと候補セル選択）
  */
 public class TechniqueAnalyzer {
 
@@ -24,6 +25,7 @@ public class TechniqueAnalyzer {
     public static final int LV_1 = 1; // 埋めるだけ (Base Hint)
     public static final int LV_2 = 2; // 包含 (Subset)
     public static final int LV_3 = 3; // 共通 (Intersection)
+    public static final int LV_4 = 4; // 背理法 (Contradiction) ★Phase 1: 追加
 
     // =========================================================================
     // フィールド
@@ -306,8 +308,114 @@ public class TechniqueAnalyzer {
 
         updateDifficultyMap(deducedLevel);
 
+        // ★Phase 1: Lv4推論の呼び出し（現在はコメントアウト）
+        if (deduced.isEmpty()) {
+            deduced = solveWithContradiction();
+            if (!deduced.isEmpty()) {
+                Map<Integer, Integer> lv4Map = new HashMap<>();
+                for (int cell : deduced.keySet()) {
+                    lv4Map.put(cell, LV_4);
+                }
+                updateDifficultyMap(lv4Map);
+            }
+        }
+
         return deduced;
     }
+
+    // =========================================================================
+    // ★Phase 1: Lv4推論のメソッド群
+    // =========================================================================
+
+    /**
+     * ★Phase 1: Lv4推論のメイン処理（背理法）
+     * 
+     * Lv1-3で解けなかった場合に呼び出される.
+     * 未確定セルに対して「MINE」「SAFE」の仮定を立て、
+     * DLXで矛盾を検出することで確定させる.
+     * 
+     * @return 確定したセルのマップ（空の場合、Lv4でも確定できなかった）
+     */
+    private Map<Integer, Integer> solveWithContradiction() {
+        System.out.println("  [Lv4] Starting contradiction analysis...");
+
+        // 候補セルの選択
+        List<Integer> candidates = selectCandidateCells();
+
+        if (candidates.isEmpty()) {
+            System.out.println("  [Lv4] No unknown cells found.");
+            return new HashMap<>();
+        }
+
+        System.out.println("  [Lv4] Testing " + candidates.size() + " candidate cells");
+
+        // 各候補について検証
+        for (int i = 0; i < candidates.size(); i++) {
+            int cell = candidates.get(i);
+
+            System.out.println("  [Lv4] Testing cell " + cell +
+                    " (" + (i + 1) + "/" + candidates.size() + ")");
+
+            // TODO Phase 2: 必要ヒント抽出、DLX検証の実装
+            // Set<Integer> requiredHints = extractRequiredHints(cell);
+            // boolean mineValid = testAssumptionWithDLX(requiredHints, cell, FLAGGED);
+            // boolean safeValid = testAssumptionWithDLX(requiredHints, cell, SAFE);
+
+            // 現在はスケルトンのみ
+            System.out.println("    [Phase 1] Skeleton only - no actual testing yet");
+        }
+
+        System.out.println("  [Lv4] No cells determined (Phase 1: skeleton only)");
+        return new HashMap<>();
+    }
+
+    /**
+     * ★Phase 1 Step 1.2: 候補セルの選択
+     * 
+     * 未確定セル（board[i] == MINE）を全て抽出する.
+     * Phase 1では優先度なしでインデックス順に返す.
+     * 
+     * @return 未確定セルのリスト（インデックス順）
+     */
+    private List<Integer> selectCandidateCells() {
+        List<Integer> candidates = new ArrayList<>();
+
+        for (int i = 0; i < board.length; i++) {
+            if (board[i] == MINE) { // 未確定セル
+                candidates.add(i);
+            }
+        }
+
+        // Phase 1: インデックス順（ソートなし）
+        // 将来的に優先度ソートが必要な場合はここで実装
+
+        return candidates;
+    }
+
+    // =========================================================================
+    // ★Phase 1: テスト用のデバッグメソッド
+    // =========================================================================
+
+    /**
+     * Phase 1の動作確認用: 候補セル選択のテスト
+     */
+    public void testCandidateSelection() {
+        List<Integer> candidates = selectCandidateCells();
+        System.out.println("=== Candidate Selection Test ===");
+        System.out.println("Total unknown cells: " + candidates.size());
+        System.out.println("Candidates (first 10): ");
+        for (int i = 0; i < Math.min(10, candidates.size()); i++) {
+            int cell = candidates.get(i);
+            int row = cell / size;
+            int col = cell % size;
+            System.out.println("  Cell " + cell + " (row=" + row + ", col=" + col + ")");
+        }
+        System.out.println("================================");
+    }
+
+    // =========================================================================
+    // 既存のヘルパーメソッド群
+    // =========================================================================
 
     /**
      * 難易度マップの更新を行うヘルパーメソッド
