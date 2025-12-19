@@ -4,13 +4,14 @@ import java.util.stream.Collectors;
 /**
  * 盤面全体の状態を管理し , 推論のステップを進めるクラス.
  * 「Region事前全列挙モデル」に基づき実装.
- * * ★修正版仕様:
+ * ★修正版仕様:
  * 1. Lv2/Lv3のRegionは「初期盤面」からのみ生成し , 以降は新規生成しない.
  * 2. ラウンド進行時は , 既存のLv2/Lv3 Regionをメンテナンス(確定セルの除去)して維持する.
  * 3. Lv1 Regionのみ , 毎ラウンド最新の盤面から再生成する.
  * 4. AnalysisLogger によるCSV出力機能を追加.
  * 5. ★Phase 1: Lv4推論の基盤整備（スケルトンと候補セル選択）
  */
+
 public class TechniqueAnalyzer {
 
     // =========================================================================
@@ -325,11 +326,11 @@ public class TechniqueAnalyzer {
     }
 
     // =========================================================================
-    // ★Phase 1-2: Lv4推論のメソッド群
+    // ★Phase 1-3: Lv4推論のメソッド群
     // =========================================================================
 
     /**
-     * ★Phase 1-2: Lv4推論のメイン処理（背理法）
+     * ★Phase 1-3: Lv4推論のメイン処理（背理法）
      * 
      * Lv1-3で解けなかった場合に呼び出される.
      * 未確定セルに対して「MINE」「SAFE」の仮定を立て、
@@ -357,8 +358,8 @@ public class TechniqueAnalyzer {
             System.out.println("  [Lv4] Testing cell " + cell +
                     " (" + (i + 1) + "/" + candidates.size() + ")");
 
-            // ★Phase 2: 必要ヒント抽出（モック版）
-            Set<Integer> requiredHints = extractRequiredHintsMock(cell);
+            // ★Phase 3: 実際の必要ヒント抽出
+            Set<Integer> requiredHints = extractRequiredHints(cell);
 
             if (requiredHints.isEmpty()) {
                 System.out.println("    No required hints found, skipping...");
@@ -421,30 +422,29 @@ public class TechniqueAnalyzer {
     }
 
     /**
-     * ★Phase 2: 必要ヒント抽出（モック版）
-     * Phase 3で実際のHintCountCalculatorに置き換える
+     * ★Phase 3: 実際の必要ヒント抽出
+     * 
+     * HintCountCalculatorを使用して、指定されたセルの確定に
+     * 必要な最小限のヒント集合を取得する.
+     * 
+     * @param cellIndex 対象セルのインデックス
+     * @return 必要なヒントのインデックス集合
      */
-    private Set<Integer> extractRequiredHintsMock(int cellIndex) {
-        // モック: セルの周囲にあるヒントを返す
-        Set<Integer> hints = new HashSet<>();
-        List<Integer> neighbors = getNeighbors(cellIndex);
+    private Set<Integer> extractRequiredHints(int cellIndex) {
+        // HintCountCalculatorを実行
+        HintCountCalculator calculator = new HintCountCalculator(
+                board, // 現在の盤面
+                completeBoard, // 完全解
+                size // 盤面サイズ
+        );
 
-        for (int nb : neighbors) {
-            if (board[nb] >= 0) { // ヒントセル
-                hints.add(nb);
-            }
-        }
+        // 解析実行
+        calculator.calculate();
 
-        // 最大3個まで（効率のため）
-        if (hints.size() > 3) {
-            List<Integer> list = new ArrayList<>(hints);
-            hints.clear();
-            for (int i = 0; i < 3; i++) {
-                hints.add(list.get(i));
-            }
-        }
+        // 指定されたセルの必要ヒントを取得
+        Set<Integer> requiredHints = calculator.getRequiredHints(cellIndex);
 
-        return hints;
+        return requiredHints;
     }
 
     /**
