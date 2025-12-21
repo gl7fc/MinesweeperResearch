@@ -1,4 +1,4 @@
-import java.util.Arrays;
+import java.util.*;
 
 /**
  * マインスイーパ難易度解析 メインクラス
@@ -95,6 +95,13 @@ public class Main {
             System.out.println(" [ 4 ]: Lv4 (背理法)\n");
 
             printAnalysis(puzzle, taDifficulties, size);
+
+            Map<Integer, Set<Integer>> map = calculator.getAllRequiredHints();
+
+            for (int key : map.keySet()) {
+                System.out.println(key + ":" + map.get(key));
+            }
+
         }
     }
 

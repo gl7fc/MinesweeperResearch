@@ -148,19 +148,8 @@ public class HintCountCalculator {
                     // 難易度記録 (初めて解けた場合のみ)
                     if (difficultyMap[cellIdx] == -1) {
                         difficultyMap[cellIdx] = k;
-                    }
-
-                    // ★追加: 必要ヒント集合を記録
-                    // このセルがまだ記録されていない、または
-                    // より少ないヒント数で確定できる場合は更新
-                    if (!roundRequiredHints.containsKey(cellIdx)) {
+                        // ★追加: 必要ヒント集合を記録
                         roundRequiredHints.put(cellIdx, new HashSet<>(subset));
-                    } else {
-                        // 既に記録されている場合、より小さいヒント集合を保持
-                        Set<Integer> existing = roundRequiredHints.get(cellIdx);
-                        if (subset.size() < existing.size()) {
-                            roundRequiredHints.put(cellIdx, new HashSet<>(subset));
-                        }
                     }
                 }
             }
