@@ -83,8 +83,8 @@ public class TechniqueAnalyzer {
 
             // 1. Regionの生成とメンテナンス
             // Lv1は全再生成 , Lv2/Lv3は初回のみ生成し以降は維持・更新
-            updateAndGenerateRegions();
-if (!isDerivedRegionsGenerated) {
+            regionPool = updateAndGenerateRegions(board, regionPool, !isDerivedRegionsGenerated);
+            if (!isDerivedRegionsGenerated) {
                 isDerivedRegionsGenerated = true;
             }
 
@@ -116,7 +116,7 @@ if (!isDerivedRegionsGenerated) {
                     board[cellIdx] = value;
 
                     // 難易度を記録
-                        if (difficultyMap[cellIdx] == LV_UNSOLVED) {
+                    if (difficultyMap[cellIdx] == LV_UNSOLVED) {
                         difficultyMap[cellIdx] = level;
                     }
 
@@ -153,32 +153,31 @@ if (!isDerivedRegionsGenerated) {
         // 1. 既存プールのメンテナンス (Lv2, Lv3の更新)
         Map<Set<Integer>, Region> nextPool = new HashMap<>();
 
-        for (Region r : regionPool.values()) {
+        for (Region r : targetPool.values()) {
             if (r.getOriginLevel() == LV_1)
                 continue;
 
-            Region updated = updateRegionState(r);
+            Region updated = updateRegionState(targetBoard, r);
 
             if (updated != null && !updated.getCells().isEmpty()) {
                 nextPool.put(updated.getCells(), updated);
             }
         }
-        regionPool = nextPool;
 
         // 2. Lv1: Base Regions の完全再生成 (毎回実行)
         List<Region> baseRegions = new ArrayList<>();
-        for (int i = 0; i < board.length; i++) {
-            if (board[i] >= 0) {
-                Region r = createRegionFromHint(i);
+        for (int i = 0; i < targetBoard.length; i++) {
+            if (targetBoard[i] >= 0) {
+                Region r = createRegionFromHint(targetBoard, i);
                 if (r != null) {
                     baseRegions.add(r);
-                    addToPool(r);
+                    addToPool(nextPool, r);
                 }
             }
         }
 
-        // 3. Lv2 & Lv3 の新規生成 (★初回のみ実行★)
-        if (!isDerivedRegionsGenerated) {
+        // 3. Lv2 & Lv3 の新規生成
+        if (generateDerived) {
             for (int i = 0; i < baseRegions.size(); i++) {
                 for (int j = i + 1; j < baseRegions.size(); j++) {
                     Region rA = baseRegions.get(i);
@@ -188,36 +187,36 @@ if (!isDerivedRegionsGenerated) {
                     if (rA.isSubsetOf(rB)) {
                         Region diff = rB.subtract(rA, LV_2);
                         if (!diff.getCells().isEmpty())
-                            addToPool(diff);
+                            addToPool(nextPool, diff);
                     } else if (rB.isSubsetOf(rA)) {
                         Region diff = rA.subtract(rB, LV_2);
                         if (!diff.getCells().isEmpty())
-                            addToPool(diff);
+                            addToPool(nextPool, diff);
                     }
                     // --- 共通判定 (Lv3) ---
                     else {
                         Set<Region> intersections = rA.intersect(rB, LV_3);
                         for (Region r : intersections) {
-                            addToPool(r);
+                            addToPool(nextPool, r);
                         }
                     }
                 }
             }
-            isDerivedRegionsGenerated = true;
         }
 
-        reassignIds();
+        reassignIds(nextPool);
+        return nextPool;
     }
 
     /**
-     * Regionの状態を現在の盤面に合わせる（確定セルの除去）
+     * Regionの状態を指定盤面に合わせる（確定セルの除去）
      */
-    private Region updateRegionState(Region original) {
+    private Region updateRegionState(int[] targetBoard, Region original) {
         Set<Integer> currentCells = new HashSet<>();
         int currentMines = original.getMines();
 
         for (int cell : original.getCells()) {
-            int val = board[cell];
+            int val = targetBoard[cell];
             if (val == MINE) {
                 currentCells.add(cell);
             } else if (val == FLAGGED) {
@@ -253,23 +252,23 @@ if (!isDerivedRegionsGenerated) {
     }
 
     /**
-     * Regionをプールに追加する.
+     * Regionを指定プールに追加する.
      */
-    private void addToPool(Region newRegion) {
+    private void addToPool(Map<Set<Integer>, Region> targetPool, Region newRegion) {
         Set<Integer> key = newRegion.getCells();
-        if (regionPool.containsKey(key)) {
-            Region existing = regionPool.get(key);
+        if (targetPool.containsKey(key)) {
+            Region existing = targetPool.get(key);
             if (newRegion.getOriginLevel() < existing.getOriginLevel()) {
-                regionPool.put(key, newRegion);
+                targetPool.put(key, newRegion);
             }
         } else {
-            regionPool.put(key, newRegion);
+            targetPool.put(key, newRegion);
         }
     }
 
-    private void reassignIds() {
+    private void reassignIds(Map<Set<Integer>, Region> targetPool) {
         int id = 0;
-        List<Region> list = new ArrayList<>(regionPool.values());
+        List<Region> list = new ArrayList<>(targetPool.values());
         list.sort(Comparator.comparingInt(Region::getOriginLevel)
                 .thenComparingInt(Region::hashCode));
 
@@ -279,14 +278,14 @@ if (!isDerivedRegionsGenerated) {
     }
 
     /**
-     * プールされたRegionを使って確定できるセルを探す.
+     * プールされたRegionを使って確定できるセルを探す（本体用）
      */
-    private Map<Integer, Integer> solveFromPool() {
+    private Map<Integer, Integer> solveFromPool(int[] targetBoard, Map<Set<Integer>, Region> targetPool) {
         Map<Integer, Integer> deduced = new HashMap<>();
         Map<Integer, Integer> deducedLevel = new HashMap<>();
 
         // レベル順(昇順)にソートして処理
-        List<Region> sortedRegions = new ArrayList<>(regionPool.values());
+        List<Region> sortedRegions = new ArrayList<>(targetPool.values());
         sortedRegions.sort(Comparator.comparingInt(Region::getOriginLevel));
 
         for (Region r : sortedRegions) {
@@ -370,17 +369,17 @@ if (!isDerivedRegionsGenerated) {
         }
     }
 
-    private Region createRegionFromHint(int hintIdx) {
-        if (board[hintIdx] < 0)
+    private Region createRegionFromHint(int[] targetBoard, int hintIdx) {
+        if (targetBoard[hintIdx] < 0)
             return null;
 
-        int hintVal = board[hintIdx];
+        int hintVal = targetBoard[hintIdx];
         List<Integer> neighbors = getNeighbors(hintIdx);
         Set<Integer> unknownCells = new HashSet<>();
         int flaggedCount = 0;
 
         for (int nb : neighbors) {
-            int val = board[nb];
+            int val = targetBoard[nb];
             if (val == MINE) {
                 unknownCells.add(nb);
             } else if (val == FLAGGED) {
@@ -452,14 +451,12 @@ if (!isDerivedRegionsGenerated) {
     }
 
     /**
-     * Lv4 (背理法) による推論
-     * 未確定セルに対して逆の値を仮置きし、Lv1推論で矛盾が発生するか検証する
+     * Lv4-6 (背理法) による推論
+     * 未確定セルに対して逆の値を仮置きし、Lv1-3推論で矛盾が発生するか検証する
      * 
-     * @return 確定したセルのマップ <セルインデックス, 値(FLAGGED/SAFE)>
+     * @return [セルインデックス, 値(FLAGGED/SAFE), 難易度レベル(4-6)] or null（確定できなかった場合）
      */
-    private Map<Integer, Integer> solveLv4() {
-        Map<Integer, Integer> deduced = new HashMap<>();
-
+    private int[] solveLv4() {
         // 未確定セルを収集
         List<Integer> unknownCells = new ArrayList<>();
         for (int i = 0; i < board.length; i++) {
@@ -468,7 +465,7 @@ if (!isDerivedRegionsGenerated) {
             }
         }
 
-        System.out.println("  [Lv4] Testing " + unknownCells.size() + " unknown cells...");
+        System.out.println("  [Lv4-6] Testing " + unknownCells.size() + " unknown cells...");
 
         // 各未確定セルについて背理法を試す
         for (int cellIdx : unknownCells) {
@@ -487,14 +484,16 @@ if (!isDerivedRegionsGenerated) {
                 wrongValueStr = "MINE";
             }
 
-            System.out.println("  [Lv4] Trying cell " + cellIdx + ": assuming " + wrongValueStr + "...");
+            System.out.println("  [Lv4-6] Trying cell " + cellIdx + ": assuming " + wrongValueStr + "...");
 
             // 一時盤面を作成し仮置き
             int[] tempBoard = Arrays.copyOf(board, board.length);
             tempBoard[cellIdx] = wrongValue;
 
-            // 矛盾判定
-            if (testContradiction(tempBoard)) {
+            // 矛盾判定（Lv1-3で推論し、矛盾検出レベルを返す）
+            int contradictionLevel = testContradiction(tempBoard);
+
+            if (contradictionLevel > 0) {
                 // 矛盾あり → このセルは正解で確定
                 int confirmedValue;
                 String type;
@@ -510,125 +509,135 @@ if (!isDerivedRegionsGenerated) {
                     assumedType = "MINE";
                 }
 
-                deduced.put(cellIdx, confirmedValue);
-                System.out.println("  -> [Lv4] Cell " + cellIdx + " is " + type + " (contradiction found!)");
+                // 難易度レベル: 仮置き + Lv1 → Lv4, 仮置き + Lv2 → Lv5, 仮置き + Lv3 → Lv6
+                int finalLevel = contradictionLevel + 3;
+
+                System.out.println("  -> [Lv" + finalLevel + "] Cell " + cellIdx + " is " + type +
+                        " (contradiction at Lv" + contradictionLevel + ")");
 
                 // ログ記録
-                logger.logStep(currentRound, cellIdx, type, LV_4, -1,
-                        "Lv4-Contradiction", "Assumed:" + assumedType);
+                logger.logStep(currentRound, cellIdx, type, finalLevel, -1,
+                        "Lv" + finalLevel + "-Contradiction", "Assumed:" + assumedType);
 
                 // 1セル確定したらすぐにreturn（Lv1に戻るため）
-                return deduced;
+                return new int[] { cellIdx, confirmedValue, finalLevel };
             } else {
-                System.out.println("  [Lv4] Cell " + cellIdx + ": no contradiction, skipping.");
+                System.out.println("  [Lv4-6] Cell " + cellIdx + ": no contradiction, skipping.");
             }
         }
 
-        return deduced; // 全セル試しても確定できなかった
+        return null; // 全セル試しても確定できなかった
     }
 
     /**
-     * 仮置き後のLv1推論で矛盾が発生するか検証する
+     * 仮置き後のLv1-3推論で矛盾が発生するか検証する
      * 
      * @param tempBoard 仮置き済みの一時盤面
-     * @return true: 矛盾あり, false: 矛盾なし
+     * @return 矛盾検出レベル（1-3）, -1: 矛盾なし
      */
-    private boolean testContradiction(int[] tempBoard) {
+    private int testContradiction(int[] tempBoard) {
+        // 一時盤面用のRegionPoolを作成
+        Map<Set<Integer>, Region> tempPool = new HashMap<>();
+
         int iteration = 0;
+        int maxLevelUsed = 0;
 
         while (true) {
             iteration++;
-            boolean changed = false;
-            int solvedInIteration = 0;
 
-            // 全ヒントセルを走査
-            for (int i = 0; i < tempBoard.length; i++) {
-                if (tempBoard[i] < 0)
-                    continue; // ヒントセル以外はスキップ
+            // Regionを生成（毎回Lv2/3も生成）
+            tempPool = updateAndGenerateRegions(tempBoard, tempPool, true);
 
-                int hintValue = tempBoard[i];
-                List<Integer> neighbors = getNeighbors(i);
-
-                // 隣接セルの状態を集計
-                List<Integer> unknownCells = new ArrayList<>();
-                int flaggedCount = 0;
-
-                for (int nb : neighbors) {
-                    int val = tempBoard[nb];
-                    if (val == MINE) {
-                        unknownCells.add(nb);
-                    } else if (val == FLAGGED) {
-                        flaggedCount++;
-                    }
-                }
-
-                // // 周囲に未確定セルがなければスキップ
-                // if (unknownCells.isEmpty())
-                // continue;
-
-                // int remainingMines = hintValue - flaggedCount;
-
-                // // 矛盾チェック
-                // if (remainingMines < 0) {
-                // System.out.println(" [Contradiction] Hint " + i + ": remainingMines=" +
-                // remainingMines
-                // + " < 0 (too many flags)");
-                // return true;
-                // }
-                // if (remainingMines > unknownCells.size()) {
-                // System.out.println(" [Contradiction] Hint " + i + ": remainingMines=" +
-                // remainingMines
-                // + " > unknownCells=" + unknownCells.size() + " (not enough space)");
-                // return true;
-                // }
-
-                int remainingMines = hintValue - flaggedCount; // 計算を先に移動
-
-                // ★矛盾チェックを先に実行
-                // ケース1: フラグが多すぎる（remainingMines < 0）
-                if (remainingMines < 0) {
-                    System.out.println("    [Contradiction] Hint " + i + ": remainingMines=" + remainingMines
-                            + " < 0 (too many flags)");
-                    return true;
-                }
-                // ケース2: 地雷を置く場所が足りない（必要な数 > 残りの空きマス）
-                if (remainingMines > unknownCells.size()) {
-                    System.out.println("    [Contradiction] Hint " + i + ": remainingMines=" + remainingMines
-                            + " > unknownCells=" + unknownCells.size() + " (not enough space)");
-                    return true;
-                }
-
-                // ここで未確定セルがなければ、これ以上確定処理はできないのでスキップ
-                if (unknownCells.isEmpty())
-                    continue;
-
-                // 確定処理
-                if (remainingMines == 0) {
-                    // 全未確定セルをSAFEに
-                    for (int cell : unknownCells) {
-                        tempBoard[cell] = SAFE;
-                    }
-                    solvedInIteration += unknownCells.size();
-                    changed = true;
-                } else if (remainingMines == unknownCells.size()) {
-                    // 全未確定セルをFLAGGEDに
-                    for (int cell : unknownCells) {
-                        tempBoard[cell] = FLAGGED;
-                    }
-                    solvedInIteration += unknownCells.size();
-                    changed = true;
-                }
+            // 矛盾チェック: Regionの mines < 0 または mines > cells.size()
+            int contradictionLevel = checkContradiction(tempPool);
+            if (contradictionLevel > 0) {
+                System.out
+                        .println("    [Contradiction] Found at Lv" + contradictionLevel + " in iteration " + iteration);
+                return Math.max(maxLevelUsed, contradictionLevel);
             }
 
-            if (changed) {
-                System.out.println("    [Lv4-Lv1] Iteration " + iteration + ": solved " + solvedInIteration + " cells");
-            }
+            // 確定処理
+            SolveResult result = solveFromPoolForContradiction(tempBoard, tempPool);
 
-            // 何も変化がなければループ終了
-            if (!changed)
+            if (result.solvedCount > 0) {
+                System.out.println("    [Lv4-Lv" + result.maxLevel + "] Iteration " + iteration +
+                        ": solved " + result.solvedCount + " cells");
+                maxLevelUsed = Math.max(maxLevelUsed, result.maxLevel);
+            } else {
+                // 何も確定できなければ終了
                 break;
+            }
         }
 
-        return false; // 矛盾なし
+        return -1; // 矛盾なし
+    }
+
+    /**
+     * RegionPoolに矛盾がないかチェックする
+     * 
+     * @return 矛盾があるRegionの最小レベル, なければ-1
+     */
+    private int checkContradiction(Map<Set<Integer>, Region> targetPool) {
+        for (Region r : targetPool.values()) {
+            if (r.getMines() < 0) {
+                return r.getOriginLevel();
+            }
+            if (r.getMines() > r.size()) {
+                return r.getOriginLevel();
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * 矛盾検出用のsolveFromPool（ログ出力なし、盤面直接更新）
+     */
+    private SolveResult solveFromPoolForContradiction(int[] targetBoard, Map<Set<Integer>, Region> targetPool) {
+        int solvedCount = 0;
+        int maxLevel = 0;
+
+        // レベル順(昇順)にソートして処理
+        List<Region> sortedRegions = new ArrayList<>(targetPool.values());
+        sortedRegions.sort(Comparator.comparingInt(Region::getOriginLevel));
+
+        for (Region r : sortedRegions) {
+            boolean determined = false;
+            int valToSet = -99;
+
+            if (r.getMines() == r.size()) {
+                determined = true;
+                valToSet = FLAGGED;
+            } else if (r.getMines() == 0) {
+                determined = true;
+                valToSet = SAFE;
+            }
+
+            if (determined) {
+                int level = Math.max(LV_1, r.getOriginLevel());
+
+                for (int cell : r.getCells()) {
+                    if (targetBoard[cell] == MINE) {
+                        targetBoard[cell] = valToSet;
+                        solvedCount++;
+                        maxLevel = Math.max(maxLevel, level);
+                    }
+                }
+            }
+        }
+
+        return new SolveResult(solvedCount, maxLevel);
+    }
+
+    /**
+     * solveFromPoolForContradictionの結果を保持するクラス
+     */
+    private static class SolveResult {
+        final int solvedCount;
+        final int maxLevel;
+
+        SolveResult(int solvedCount, int maxLevel) {
+            this.solvedCount = solvedCount;
+            this.maxLevel = maxLevel;
+        }
     }
 }
