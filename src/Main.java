@@ -51,21 +51,22 @@ public class Main {
             // ---------------------------------------------------
             // 1. HintCountCalculator を使用して難易度を判定 (既存)
             // ---------------------------------------------------
-            System.out.println("\n--- [HintCountCalculator] 難易度解析実行中... ---");
+            // System.out.println("\n--- [HintCountCalculator] 難易度解析実行中... ---");
 
-            // puzzle: 問題, board: 正解, size: サイズ
-            HintCountCalculator calculator = new HintCountCalculator(puzzle, board, size);
+            // // puzzle: 問題, board: 正解, size: サイズ
+            // HintCountCalculator calculator = new HintCountCalculator(puzzle, board,
+            // size);
 
-            // 計算実行
-            calculator.calculate();
+            // // 計算実行
+            // calculator.calculate();
 
-            // 結果取得
-            int[] difficulties = calculator.getDifficultyMap();
+            // // 結果取得
+            // int[] difficulties = calculator.getDifficultyMap();
 
-            // 結果表示
-            System.out.println("--- 解析結果 (k-Hint) ---");
-            System.out.println(" [数字]: そのセルを解くのに必要だったヒント数(k)");
-            printAnalysis(puzzle, difficulties, size);
+            // // 結果表示
+            // System.out.println("--- 解析結果 (k-Hint) ---");
+            // System.out.println(" [数字]: そのセルを解くのに必要だったヒント数(k)");
+            // printAnalysis(puzzle, difficulties, size);
 
             // ---------------------------------------------------
             // 2. TechniqueAnalyzer を使用して難易度を判定 (新規追加)
