@@ -24,6 +24,7 @@ public class TechniqueAnalyzer {
     public static final int LV_1 = 1; // 埋めるだけ (Base Hint)
     public static final int LV_2 = 2; // 包含 (Subset)
     public static final int LV_3 = 3; // 共通 (Intersection)
+    public static final int LV_4 = 4; // 背理法 (Contradiction)
 
     // =========================================================================
     // フィールド
@@ -85,17 +86,37 @@ public class TechniqueAnalyzer {
             // デバッグ出力
             // printRegionPool();
 
-            // 2. ソルビング (レベル順に試す)
+            // 2. ソルビング (レベル順に試す: Lv1 → Lv2 → Lv3)
             Map<Integer, Integer> deduced = solveFromPool();
 
             if (!deduced.isEmpty()) {
-                System.out.println("Round " + currentRound + ": Found " + deduced.size() + " cells.");
+                System.out.println("Round " + currentRound + ": Found " + deduced.size() + " cells (Lv1-3).");
                 applyResult(deduced);
                 // 盤面が変わったので , 次のラウンドへ
                 changed = true;
                 currentRound++;
             } else {
-                System.out.println("Round " + currentRound + ": No cells solved.");
+                // ★追加: Lv1~Lv3で確定できなかった場合、Lv4（背理法）を試す
+                System.out.println("Round " + currentRound + ": No cells solved by Lv1-3. Trying Lv4...");
+                Map<Integer, Integer> lv4Deduced = solveLv4();
+
+                if (!lv4Deduced.isEmpty()) {
+                    System.out.println("Round " + currentRound + ": Found " + lv4Deduced.size() + " cells (Lv4).");
+                    applyResult(lv4Deduced);
+
+                    // Lv4で確定したセルの難易度を記録
+                    for (int cellIdx : lv4Deduced.keySet()) {
+                        if (difficultyMap[cellIdx] == LV_UNSOLVED) {
+                            difficultyMap[cellIdx] = LV_4;
+                        }
+                    }
+
+                    // 盤面が変わったので次のラウンドへ（Lv1から再試行）
+                    changed = true;
+                    currentRound++;
+                } else {
+                    System.out.println("Round " + currentRound + ": No cells solved by Lv4 either.");
+                }
             }
         }
     }
@@ -412,5 +433,164 @@ public class TechniqueAnalyzer {
             }
         }
         System.out.println("-----------------------------------");
+    }
+
+    /**
+     * Lv4 (背理法) による推論
+     * 未確定セルに対して逆の値を仮置きし、Lv1推論で矛盾が発生するか検証する
+     * 
+     * @return 確定したセルのマップ <セルインデックス, 値(FLAGGED/SAFE)>
+     */
+    private Map<Integer, Integer> solveLv4() {
+        Map<Integer, Integer> deduced = new HashMap<>();
+
+        // 未確定セルを収集
+        List<Integer> unknownCells = new ArrayList<>();
+        for (int i = 0; i < board.length; i++) {
+            if (board[i] == MINE) {
+                unknownCells.add(i);
+            }
+        }
+
+        System.out.println("  [Lv4] Testing " + unknownCells.size() + " unknown cells...");
+
+        // 各未確定セルについて背理法を試す
+        for (int cellIdx : unknownCells) {
+            // 正解を確認
+            int correctValue = completeBoard[cellIdx];
+            boolean isMine = (correctValue == MINE || correctValue == FLAGGED);
+
+            // 逆の値を決定（正解がMINEならSAFE、正解がSAFEならFLAGGED）
+            int wrongValue;
+            String wrongValueStr;
+            if (isMine) {
+                wrongValue = SAFE;
+                wrongValueStr = "SAFE";
+            } else {
+                wrongValue = FLAGGED;
+                wrongValueStr = "MINE";
+            }
+
+            System.out.println("  [Lv4] Trying cell " + cellIdx + ": assuming " + wrongValueStr + "...");
+
+            // 一時盤面を作成し仮置き
+            int[] tempBoard = Arrays.copyOf(board, board.length);
+            tempBoard[cellIdx] = wrongValue;
+
+            // 矛盾判定
+            if (testContradiction(tempBoard)) {
+                // 矛盾あり → このセルは正解で確定
+                int confirmedValue;
+                String type;
+                String assumedType;
+
+                if (isMine) {
+                    confirmedValue = FLAGGED;
+                    type = "MINE";
+                    assumedType = "SAFE";
+                } else {
+                    confirmedValue = SAFE;
+                    type = "SAFE";
+                    assumedType = "MINE";
+                }
+
+                deduced.put(cellIdx, confirmedValue);
+                System.out.println("  -> [Lv4] Cell " + cellIdx + " is " + type + " (contradiction found!)");
+
+                // ログ記録
+                logger.logStep(currentRound, cellIdx, type, LV_4, -1,
+                        "Lv4-Contradiction", "Assumed:" + assumedType);
+
+                // 1セル確定したらすぐにreturn（Lv1に戻るため）
+                return deduced;
+            } else {
+                System.out.println("  [Lv4] Cell " + cellIdx + ": no contradiction, skipping.");
+            }
+        }
+
+        return deduced; // 全セル試しても確定できなかった
+    }
+
+    /**
+     * 仮置き後のLv1推論で矛盾が発生するか検証する
+     * 
+     * @param tempBoard 仮置き済みの一時盤面
+     * @return true: 矛盾あり, false: 矛盾なし
+     */
+    private boolean testContradiction(int[] tempBoard) {
+        int iteration = 0;
+
+        while (true) {
+            iteration++;
+            boolean changed = false;
+            int solvedInIteration = 0;
+
+            // 全ヒントセルを走査
+            for (int i = 0; i < tempBoard.length; i++) {
+                if (tempBoard[i] < 0)
+                    continue; // ヒントセル以外はスキップ
+
+                int hintValue = tempBoard[i];
+                List<Integer> neighbors = getNeighbors(i);
+
+                // 隣接セルの状態を集計
+                List<Integer> unknownCells = new ArrayList<>();
+                int flaggedCount = 0;
+
+                for (int nb : neighbors) {
+                    int val = tempBoard[nb];
+                    if (val == MINE) {
+                        unknownCells.add(nb);
+                    } else if (val == FLAGGED) {
+                        flaggedCount++;
+                    }
+                }
+
+                // 周囲に未確定セルがなければスキップ
+                if (unknownCells.isEmpty())
+                    continue;
+
+                int remainingMines = hintValue - flaggedCount;
+
+                // 矛盾チェック
+                if (remainingMines < 0) {
+                    System.out.println("    [Contradiction] Hint " + i + ": remainingMines=" + remainingMines
+                            + " < 0 (too many flags)");
+                    return true;
+                }
+                if (remainingMines > unknownCells.size()) {
+                    System.out.println("    [Contradiction] Hint " + i + ": remainingMines=" + remainingMines
+                            + " > unknownCells=" + unknownCells.size() + " (not enough space)");
+                    return true;
+                }
+
+                // 確定処理
+                if (remainingMines == 0) {
+                    // 全未確定セルをSAFEに
+                    for (int cell : unknownCells) {
+                        tempBoard[cell] = SAFE;
+                    }
+                    solvedInIteration += unknownCells.size();
+                    changed = true;
+                } else if (remainingMines == unknownCells.size()) {
+                    // 全未確定セルをFLAGGEDに
+                    for (int cell : unknownCells) {
+                        tempBoard[cell] = FLAGGED;
+                    }
+                    solvedInIteration += unknownCells.size();
+                    changed = true;
+                }
+            }
+
+            if (changed) {
+                System.out.println("    [Lv4-Lv1] Iteration " + iteration + ": solved " + solvedInIteration + " cells");
+            }
+
+            // 何も変化がなければループ終了
+            if (!changed)
+                break;
+        }
+
+        return false; // 矛盾なし
     }
 }
