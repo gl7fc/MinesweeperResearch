@@ -1,5 +1,6 @@
 .DS_Store
 
+.csv
 -1.class
 bin/
 out/
@@ -9,4 +10,3 @@ target/
 .project
 .settings/
 .vscode/
-.csv
