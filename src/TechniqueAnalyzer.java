@@ -24,7 +24,9 @@ public class TechniqueAnalyzer {
     public static final int LV_1 = 1; // 埋めるだけ (Base Hint)
     public static final int LV_2 = 2; // 包含 (Subset)
     public static final int LV_3 = 3; // 共通 (Intersection)
-    public static final int LV_4 = 4; // 背理法 (Contradiction)
+    public static final int LV_4 = 4; // 背理法 + Lv1 (Contradiction + Base)
+    public static final int LV_5 = 5; // 背理法 + Lv2 (Contradiction + Subset)
+    public static final int LV_6 = 6; // 背理法 + Lv3 (Contradiction + Intersection)
 
     // =========================================================================
     // フィールド
@@ -82,12 +84,15 @@ public class TechniqueAnalyzer {
             // 1. Regionの生成とメンテナンス
             // Lv1は全再生成 , Lv2/Lv3は初回のみ生成し以降は維持・更新
             updateAndGenerateRegions();
+if (!isDerivedRegionsGenerated) {
+                isDerivedRegionsGenerated = true;
+            }
 
             // デバッグ出力
             printRegionPool();
 
             // 2. ソルビング (レベル順に試す: Lv1 → Lv2 → Lv3)
-            Map<Integer, Integer> deduced = solveFromPool();
+            Map<Integer, Integer> deduced = solveFromPool(board, regionPool);
 
             if (!deduced.isEmpty()) {
                 System.out.println("Round " + currentRound + ": Found " + deduced.size() + " cells (Lv1-3).");
@@ -96,26 +101,30 @@ public class TechniqueAnalyzer {
                 changed = true;
                 currentRound++;
             } else {
-                // ★追加: Lv1~Lv3で確定できなかった場合、Lv4（背理法）を試す
-                System.out.println("Round " + currentRound + ": No cells solved by Lv1-3. Trying Lv4...");
-                Map<Integer, Integer> lv4Deduced = solveLv4();
+                // ★追加: Lv1~Lv3で確定できなかった場合、Lv4-6（背理法）を試す
+                System.out.println("Round " + currentRound + ": No cells solved by Lv1-3. Trying Lv4-6...");
+                int[] lv4Result = solveLv4(); // [セルインデックス, 値, 難易度レベル] or null
 
-                if (!lv4Deduced.isEmpty()) {
-                    System.out.println("Round " + currentRound + ": Found " + lv4Deduced.size() + " cells (Lv4).");
-                    applyResult(lv4Deduced);
+                if (lv4Result != null) {
+                    int cellIdx = lv4Result[0];
+                    int value = lv4Result[1];
+                    int level = lv4Result[2];
 
-                    // Lv4で確定したセルの難易度を記録
-                    for (int cellIdx : lv4Deduced.keySet()) {
+                    System.out.println("Round " + currentRound + ": Found 1 cell (Lv" + level + ").");
+
+                    // 盤面に適用
+                    board[cellIdx] = value;
+
+                    // 難易度を記録
                         if (difficultyMap[cellIdx] == LV_UNSOLVED) {
-                            difficultyMap[cellIdx] = LV_4;
-                        }
+                        difficultyMap[cellIdx] = level;
                     }
 
                     // 盤面が変わったので次のラウンドへ（Lv1から再試行）
                     changed = true;
                     currentRound++;
                 } else {
-                    System.out.println("Round " + currentRound + ": No cells solved by Lv4 either.");
+                    System.out.println("Round " + currentRound + ": No cells solved by Lv4-6 either.");
                 }
             }
         }
@@ -130,9 +139,16 @@ public class TechniqueAnalyzer {
 
     /**
      * Regionプールの更新と新規生成を行う
+     * 
+     * @param targetBoard     対象の盤面
+     * @param targetPool      対象のRegionプール
+     * @param generateDerived Lv2/Lv3のRegionを生成するかどうか
+     * @return 更新後のRegionプール
      */
-    private void updateAndGenerateRegions() {
-        regionIdCounter = 0; // IDは見やすさのために毎回振り直す
+    private Map<Set<Integer>, Region> updateAndGenerateRegions(
+            int[] targetBoard,
+            Map<Set<Integer>, Region> targetPool,
+            boolean generateDerived) {
 
         // 1. 既存プールのメンテナンス (Lv2, Lv3の更新)
         Map<Set<Integer>, Region> nextPool = new HashMap<>();
