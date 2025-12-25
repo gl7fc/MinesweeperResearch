@@ -1,6 +1,6 @@
 .DS_Store
 
-.csv
+*.csv
 -1.class
 bin/
 out/
