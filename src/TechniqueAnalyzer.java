@@ -546,23 +546,45 @@ public class TechniqueAnalyzer {
                     }
                 }
 
-                // 周囲に未確定セルがなければスキップ
-                if (unknownCells.isEmpty())
-                    continue;
+                // // 周囲に未確定セルがなければスキップ
+                // if (unknownCells.isEmpty())
+                // continue;
 
-                int remainingMines = hintValue - flaggedCount;
+                // int remainingMines = hintValue - flaggedCount;
 
-                // 矛盾チェック
+                // // 矛盾チェック
+                // if (remainingMines < 0) {
+                // System.out.println(" [Contradiction] Hint " + i + ": remainingMines=" +
+                // remainingMines
+                // + " < 0 (too many flags)");
+                // return true;
+                // }
+                // if (remainingMines > unknownCells.size()) {
+                // System.out.println(" [Contradiction] Hint " + i + ": remainingMines=" +
+                // remainingMines
+                // + " > unknownCells=" + unknownCells.size() + " (not enough space)");
+                // return true;
+                // }
+
+                int remainingMines = hintValue - flaggedCount; // 計算を先に移動
+
+                // ★矛盾チェックを先に実行
+                // ケース1: フラグが多すぎる（remainingMines < 0）
                 if (remainingMines < 0) {
                     System.out.println("    [Contradiction] Hint " + i + ": remainingMines=" + remainingMines
                             + " < 0 (too many flags)");
                     return true;
                 }
+                // ケース2: 地雷を置く場所が足りない（必要な数 > 残りの空きマス）
                 if (remainingMines > unknownCells.size()) {
                     System.out.println("    [Contradiction] Hint " + i + ": remainingMines=" + remainingMines
                             + " > unknownCells=" + unknownCells.size() + " (not enough space)");
                     return true;
                 }
+
+                // ここで未確定セルがなければ、これ以上確定処理はできないのでスキップ
+                if (unknownCells.isEmpty())
+                    continue;
 
                 // 確定処理
                 if (remainingMines == 0) {
