@@ -89,7 +89,7 @@ public class TechniqueAnalyzer {
             }
 
             // デバッグ出力
-            printRegionPool();
+            // printRegionPool();
 
             // 2. ソルビング (レベル順に試す: Lv1 → Lv2 → Lv3)
             Map<Integer, Integer> deduced = solveFromPool(board, regionPool);
@@ -210,6 +210,7 @@ public class TechniqueAnalyzer {
 
     /**
      * Regionの状態を指定盤面に合わせる（確定セルの除去）
+     * 矛盾があってもRegionを返す（checkContradictionで検出するため）
      */
     private Region updateRegionState(int[] targetBoard, Region original) {
         Set<Integer> currentCells = new HashSet<>();
@@ -224,8 +225,9 @@ public class TechniqueAnalyzer {
             }
         }
 
-        if (currentMines < 0)
-            return null;
+        // 矛盾があってもnullを返さない（checkContradictionで検出する）
+        // if (currentMines < 0)
+        // return null;
 
         if (currentCells.size() == original.getCells().size() && currentMines == original.getMines()) {
             return original;
@@ -591,16 +593,32 @@ public class TechniqueAnalyzer {
 
     /**
      * 矛盾検出用のsolveFromPool（ログ出力なし、盤面直接更新）
+     * Lv1で確定したらLv2以上は試さない（本体と同じロジック）
      */
     private SolveResult solveFromPoolForContradiction(int[] targetBoard, Map<Set<Integer>, Region> targetPool) {
         int solvedCount = 0;
         int maxLevel = 0;
+        Map<Integer, Integer> deducedLevel = new HashMap<>();
 
         // レベル順(昇順)にソートして処理
         List<Region> sortedRegions = new ArrayList<>(targetPool.values());
         sortedRegions.sort(Comparator.comparingInt(Region::getOriginLevel));
 
         for (Region r : sortedRegions) {
+            // Lv1で確定があればLv2以上は試さない
+            if (solvedCount > 0) {
+                boolean hasLv1Deduction = false;
+                for (int level : deducedLevel.values()) {
+                    if (level == LV_1) {
+                        hasLv1Deduction = true;
+                        break;
+                    }
+                }
+                if (r.getOriginLevel() > LV_1 && hasLv1Deduction) {
+                    return new SolveResult(solvedCount, maxLevel);
+                }
+            }
+
             boolean determined = false;
             int valToSet = -99;
 
@@ -620,6 +638,7 @@ public class TechniqueAnalyzer {
                         targetBoard[cell] = valToSet;
                         solvedCount++;
                         maxLevel = Math.max(maxLevel, level);
+                        deducedLevel.put(cell, level);
                     }
                 }
             }
