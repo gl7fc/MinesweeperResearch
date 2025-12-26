@@ -45,6 +45,9 @@ public class Main {
             // -1, 1, -1, -1, 2, 2, -1, -1, -1, 1
             // };
 
+            // パズルをテキストファイルに出力
+            PuzzleExporter.exportPuzzle("puzzle_" + (i + 1) + ".txt", board, puzzle, size);
+
             System.out.println("\n===== 生成された問題 (盤面" + (i + 1) + ") =====");
             PuzzleGenerator.printBoard(puzzle, size);
 
