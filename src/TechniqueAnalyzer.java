@@ -89,7 +89,7 @@ public class TechniqueAnalyzer {
             }
 
             // デバッグ出力
-            // printRegionPool();
+            printRegionPool();
 
             // 2. ソルビング (レベル順に試す: Lv1 → Lv2 → Lv3)
             Map<Integer, Integer> deduced = solveFromPool(board, regionPool);
@@ -550,12 +550,12 @@ public class TechniqueAnalyzer {
             // Regionを生成（毎回Lv2/3も生成）
             tempPool = updateAndGenerateRegions(tempBoard, tempPool, true);
 
-            // 矛盾チェック: Regionの mines < 0 または mines > cells.size()
-            int contradictionLevel = checkContradiction(tempPool);
+            // 矛盾チェック（盤面とRegionPoolの両方）
+            int contradictionLevel = checkContradiction(tempBoard, tempPool);
             if (contradictionLevel > 0) {
-                System.out
-                        .println("    [Contradiction] Found at Lv" + contradictionLevel + " in iteration " + iteration);
-                return Math.max(maxLevelUsed, contradictionLevel);
+                int level = Math.max(maxLevelUsed, contradictionLevel);
+                System.out.println("    [Contradiction] Found in iteration " + iteration + " (Level " + level + ")");
+                return level;
             }
 
             // 確定処理
@@ -575,19 +575,63 @@ public class TechniqueAnalyzer {
     }
 
     /**
-     * RegionPoolに矛盾がないかチェックする
+     * 盤面とRegionPoolに矛盾がないかチェックする
      * 
-     * @return 矛盾があるRegionの最小レベル, なければ-1
+     * @param targetBoard チェック対象の盤面
+     * @param targetPool  チェック対象のRegionPool
+     * @return 矛盾があるレベル（1-3）, なければ-1
      */
-    private int checkContradiction(Map<Set<Integer>, Region> targetPool) {
+    private int checkContradiction(int[] targetBoard, Map<Set<Integer>, Region> targetPool) {
+        // 1. RegionPoolの矛盾チェック
         for (Region r : targetPool.values()) {
             if (r.getMines() < 0) {
+                System.out.println("    [Contradiction] Region " + r + ": mines=" + r.getMines() + " < 0");
                 return r.getOriginLevel();
             }
             if (r.getMines() > r.size()) {
+                System.out
+                        .println("    [Contradiction] Region " + r + ": mines=" + r.getMines() + " > size=" + r.size());
                 return r.getOriginLevel();
             }
         }
+
+        // 2. 盤面のヒントセルを直接チェック（Regionが作られない場合の矛盾を検出）
+        for (int i = 0; i < targetBoard.length; i++) {
+            if (targetBoard[i] < 0) {
+                continue; // ヒントセル以外はスキップ
+            }
+
+            int hintValue = targetBoard[i];
+            List<Integer> neighbors = getNeighbors(i);
+
+            int unknownCount = 0;
+            int flaggedCount = 0;
+
+            for (int nb : neighbors) {
+                int val = targetBoard[nb];
+                if (val == MINE) {
+                    unknownCount++;
+                } else if (val == FLAGGED) {
+                    flaggedCount++;
+                }
+            }
+
+            int remainingMines = hintValue - flaggedCount;
+
+            // 矛盾1: フラグが多すぎる
+            if (remainingMines < 0) {
+                System.out.println("    [Contradiction] Hint " + i + ": remainingMines=" + remainingMines
+                        + " < 0 (too many flags)");
+                return LV_1;
+            }
+            // 矛盾2: 地雷を置く場所が足りない
+            if (remainingMines > unknownCount) {
+                System.out.println("    [Contradiction] Hint " + i + ": remainingMines=" + remainingMines
+                        + " > unknownCount=" + unknownCount + " (not enough space)");
+                return LV_1;
+            }
+        }
+
         return -1;
     }
 
