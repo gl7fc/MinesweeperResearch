@@ -368,13 +368,9 @@ public class TechniqueAnalyzer {
                                 " (via Region #" + r.getId() + ": " + r + " [Source: " + r.getSourceHintsString()
                                 + "]" + triggerInfo + ")");
 
-                        // ★追加: ログ記録（triggerCellsも含める）
-                        String sourceWithTrigger = r.getSourceHintsString();
-                        if (!triggerStr.isEmpty()) {
-                            sourceWithTrigger += " | Trigger:" + triggerStr;
-                        }
+                        // ★修正: ログ記録（triggerCellsを別引数で渡す）
                         logger.logStep(currentRound, cell, type, complexity,
-                                r.getId(), r.toLogString(), sourceWithTrigger);
+                                r.getId(), r.toLogString(), r.getSourceHintsString(), triggerStr);
                     } else {
                         if (complexity < deducedLevel.get(cell)) {
                             deducedLevel.put(cell, complexity);
