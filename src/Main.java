@@ -89,10 +89,12 @@ public class Main {
             // 結果表示
             System.out.println("\n--- 解析結果 (Technique Level) ---");
             System.out.println(" [ . ]: 初期ヒント");
-            System.out.println(" [ 1 ]: Lv1 (Base Hint - 単純な埋め込み)");
-            System.out.println(" [ 2 ]: Lv2 (包含テクニック - 差分領域)");
-            System.out.println(" [ 3 ]: Lv3 (共通テクニック - 共通部分の地雷数確定)");
-            System.out.println(" [ 4 ]: Lv4 (背理法)");
+            System.out.println(" [ 1 ]: Lv1 (埋めるだけ)");
+            System.out.println(" [ 2 ]: Lv2 (包含)");
+            System.out.println(" [ 3 ]: Lv3 (共通)");
+            System.out.println(" [ 4 ]: Lv4 (仮置き+Lv1)");
+            System.out.println(" [ 5 ]: Lv5 (仮置き+Lv2)");
+            System.out.println(" [ 6 ]: Lv6 (仮置き+Lv3)");
             System.out.println(" [ * ]: 論理的に確定できなかったセル\n");
 
             printAnalysis(puzzle, taDifficulties, size);

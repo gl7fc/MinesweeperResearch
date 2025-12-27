@@ -97,7 +97,7 @@ public class TechniqueAnalyzer {
             }
 
             // デバッグ出力
-            printRegionPool();
+            // printRegionPool();
 
             // 2. ソルビング (レベル順に試す: Lv1 → Lv2 → Lv3)
             Map<Integer, Integer> deduced = solveFromPool(board, regionPool);
