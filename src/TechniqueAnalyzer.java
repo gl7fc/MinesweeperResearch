@@ -69,8 +69,11 @@ public class TechniqueAnalyzer {
     public void analyze() {
         // 初期ヒントは難易度0
         for (int i = 0; i < board.length; i++) {
-            if (board[i] >= 0)
+            if (board[i] >= 0) {
                 difficultyMap[i] = 0;
+                // ★追加: 初期ヒントをRound 0としてログに記録
+                logger.logHint(i);
+            }
         }
 
         boolean changed = true;

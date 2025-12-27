@@ -34,9 +34,15 @@ public class AnalysisLogger {
         }
 
         public String toCSVString() {
+            // ★修正: NULL値（-1や空文字）を適切に出力
+            String stepStr = (step == 0) ? "" : String.valueOf(step);
+            String resultStr = result.isEmpty() ? "" : result;
+            String levelStr = (difficultyLevel < 0) ? "" : String.valueOf(difficultyLevel);
+            String regionIdStr = (regionId < 0) ? "" : String.valueOf(regionId);
+
             // カンマを含む可能性のあるフィールドはダブルクォートで囲む
-            return String.format("%d,%d,%d,%s,%d,%d,\"%s\",\"%s\",\"%s\"",
-                    round, step, cellIdx, result, difficultyLevel, regionId,
+            return String.format("%d,%s,%d,%s,%s,%s,\"%s\",\"%s\",\"%s\"",
+                    round, stepStr, cellIdx, resultStr, levelStr, regionIdStr,
                     regionContent, sourceHints, triggerCells);
         }
     }
@@ -55,6 +61,14 @@ public class AnalysisLogger {
      */
     public void startNewRound() {
         this.stepCounter = 0;
+    }
+
+    /**
+     * ★追加: 初期ヒントセルをログに記録する（Round 0, 他はNULL）
+     */
+    public void logHint(int cellIdx) {
+        // Round=0, Step=0, CellIndex=cellIdx, 他はNULL
+        logs.add(new LogEntry(0, 0, cellIdx, "", -1, -1, "", "", ""));
     }
 
     /**
