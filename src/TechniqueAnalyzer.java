@@ -8,6 +8,7 @@ import java.util.*;
  * 2. ラウンド進行時は , 既存のLv2/Lv3 Regionをメンテナンス(確定セルの除去)して維持する.
  * 3. Lv1 Regionのみ , 毎ラウンド最新の盤面から再生成する.
  * 4. AnalysisLogger によるCSV出力機能を追加.
+ * 5. ★追加: Regionの親子関係追跡（triggerCells）
  */
 public class TechniqueAnalyzer {
 
@@ -49,6 +50,9 @@ public class TechniqueAnalyzer {
     private AnalysisLogger logger;
     private int currentRound = 0;
 
+    // ★追加: 前ラウンドで確定したセルを記録
+    private Set<Integer> lastConfirmedCells = new HashSet<>();
+
     public TechniqueAnalyzer(int[] currentBoard, int[] solution, int size) {
         this.board = Arrays.copyOf(currentBoard, currentBoard.length);
         this.completeBoard = solution;
@@ -83,7 +87,8 @@ public class TechniqueAnalyzer {
 
             // 1. Regionの生成とメンテナンス
             // Lv1は全再生成 , Lv2/Lv3は初回のみ生成し以降は維持・更新
-            regionPool = updateAndGenerateRegions(board, regionPool, !isDerivedRegionsGenerated);
+            // ★修正: 前ラウンドの確定セルを渡す
+            regionPool = updateAndGenerateRegions(board, regionPool, !isDerivedRegionsGenerated, lastConfirmedCells);
             if (!isDerivedRegionsGenerated) {
                 isDerivedRegionsGenerated = true;
             }
@@ -97,6 +102,10 @@ public class TechniqueAnalyzer {
             if (!deduced.isEmpty()) {
                 System.out.println("Round " + currentRound + ": Found " + deduced.size() + " cells (Lv1-3).");
                 applyResult(deduced);
+
+                // ★追加: 確定セルを記録
+                lastConfirmedCells = deduced.keySet();
+
                 // 盤面が変わったので , 次のラウンドへ
                 changed = true;
                 currentRound++;
@@ -120,11 +129,16 @@ public class TechniqueAnalyzer {
                         difficultyMap[cellIdx] = level;
                     }
 
+                    // ★追加: 確定セルを記録
+                    lastConfirmedCells = Collections.singleton(cellIdx);
+
                     // 盤面が変わったので次のラウンドへ（Lv1から再試行）
                     changed = true;
                     currentRound++;
                 } else {
                     System.out.println("Round " + currentRound + ": No cells solved by Lv4-6 either.");
+                    // 確定なし
+                    lastConfirmedCells = new HashSet<>();
                 }
             }
         }
@@ -143,12 +157,14 @@ public class TechniqueAnalyzer {
      * @param targetBoard     対象の盤面
      * @param targetPool      対象のRegionプール
      * @param generateDerived Lv2/Lv3のRegionを生成するかどうか
+     * @param confirmedCells  前ラウンドで確定したセル集合
      * @return 更新後のRegionプール
      */
     private Map<Set<Integer>, Region> updateAndGenerateRegions(
             int[] targetBoard,
             Map<Set<Integer>, Region> targetPool,
-            boolean generateDerived) {
+            boolean generateDerived,
+            Set<Integer> confirmedCells) {
 
         // 1. 既存プールのメンテナンス (Lv2, Lv3の更新)
         Map<Set<Integer>, Region> nextPool = new HashMap<>();
@@ -157,7 +173,8 @@ public class TechniqueAnalyzer {
             if (r.getOriginLevel() == LV_1)
                 continue;
 
-            Region updated = updateRegionState(targetBoard, r);
+            // ★修正: 確定セルを渡す
+            Region updated = updateRegionState(targetBoard, r, confirmedCells);
 
             if (updated != null && !updated.getCells().isEmpty()) {
                 nextPool.put(updated.getCells(), updated);
@@ -211,10 +228,18 @@ public class TechniqueAnalyzer {
     /**
      * Regionの状態を指定盤面に合わせる（確定セルの除去）
      * 矛盾があってもRegionを返す（checkContradictionで検出するため）
+     * 
+     * @param targetBoard    対象の盤面
+     * @param original       元のRegion
+     * @param confirmedCells 前ラウンドで確定したセル集合
+     * @return 更新されたRegion
      */
-    private Region updateRegionState(int[] targetBoard, Region original) {
+    private Region updateRegionState(int[] targetBoard, Region original, Set<Integer> confirmedCells) {
         Set<Integer> currentCells = new HashSet<>();
         int currentMines = original.getMines();
+
+        // ★追加: このRegionに影響を与えた確定セルを記録
+        Set<Integer> triggers = new HashSet<>();
 
         for (int cell : original.getCells()) {
             int val = targetBoard[cell];
@@ -222,6 +247,16 @@ public class TechniqueAnalyzer {
                 currentCells.add(cell);
             } else if (val == FLAGGED) {
                 currentMines--;
+                // ★追加: 確定セルがこのRegionに含まれていたらトリガーとして記録
+                if (confirmedCells.contains(cell)) {
+                    triggers.add(cell);
+                }
+            } else if (val == SAFE || val >= 0) {
+                // SAFEまたは数字として確定
+                // ★追加: 確定セルがこのRegionに含まれていたらトリガーとして記録
+                if (confirmedCells.contains(cell)) {
+                    triggers.add(cell);
+                }
             }
         }
 
@@ -233,7 +268,8 @@ public class TechniqueAnalyzer {
             return original;
         }
 
-        Region updated = new Region(currentCells, currentMines, original.getOriginLevel());
+        // ★修正: triggerCellsを設定した新しいRegionを作成（直近のトリガーのみ）
+        Region updated = new Region(currentCells, currentMines, original.getOriginLevel(), triggers);
         updated.addSourceHints(parseSourceHints(original.getSourceHintsString()));
 
         return updated;
@@ -325,13 +361,20 @@ public class TechniqueAnalyzer {
                         deducedLevel.put(cell, complexity);
 
                         String type = (valToSet == FLAGGED) ? "MINE" : "SAFE";
+                        // ★修正: triggerCellsも出力
+                        String triggerStr = r.getTriggerCellsString();
+                        String triggerInfo = triggerStr.isEmpty() ? "" : " [Trigger: " + triggerStr + "]";
                         System.out.println("  -> Solved: Cell " + cell + " is " + type +
                                 " (via Region #" + r.getId() + ": " + r + " [Source: " + r.getSourceHintsString()
-                                + "])");
+                                + "]" + triggerInfo + ")");
 
-                        // ★追加: ログ記録
+                        // ★追加: ログ記録（triggerCellsも含める）
+                        String sourceWithTrigger = r.getSourceHintsString();
+                        if (!triggerStr.isEmpty()) {
+                            sourceWithTrigger += " | Trigger:" + triggerStr;
+                        }
                         logger.logStep(currentRound, cell, type, complexity,
-                                r.getId(), r.toLogString(), r.getSourceHintsString());
+                                r.getId(), r.toLogString(), sourceWithTrigger);
                     } else {
                         if (complexity < deducedLevel.get(cell)) {
                             deducedLevel.put(cell, complexity);
@@ -425,7 +468,11 @@ public class TechniqueAnalyzer {
         List<Region> sortedPool = new ArrayList<>(regionPool.values());
         sortedPool.sort(Comparator.comparingInt(Region::getOriginLevel));
         for (Region r : sortedPool) {
-            System.out.println("  #" + r.getId() + ": " + r + " [Source: " + r.getSourceHintsString() + "]");
+            // ★修正: triggerCellsも出力
+            String triggerStr = r.getTriggerCellsString();
+            String triggerInfo = triggerStr.isEmpty() ? "" : " [Trigger: " + triggerStr + "]";
+            System.out.println(
+                    "  #" + r.getId() + ": " + r + " [Source: " + r.getSourceHintsString() + "]" + triggerInfo);
         }
     }
 
@@ -547,8 +594,8 @@ public class TechniqueAnalyzer {
         while (true) {
             iteration++;
 
-            // Regionを生成（毎回Lv2/3も生成）
-            tempPool = updateAndGenerateRegions(tempBoard, tempPool, true);
+            // Regionを生成（毎回Lv2/3も生成、confirmedCellsは空）
+            tempPool = updateAndGenerateRegions(tempBoard, tempPool, true, new HashSet<>());
 
             // 矛盾チェック（盤面とRegionPoolの両方）
             int contradictionLevel = checkContradiction(tempBoard, tempPool);

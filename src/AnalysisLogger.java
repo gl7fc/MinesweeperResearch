@@ -18,9 +18,10 @@ public class AnalysisLogger {
         int regionId;
         String regionContent;
         String sourceHints;
+        String triggerCells; // ★追加: トリガーセル
 
         public LogEntry(int round, int step, int cellIdx, String result, int difficultyLevel,
-                int regionId, String regionContent, String sourceHints) {
+                int regionId, String regionContent, String sourceHints, String triggerCells) {
             this.round = round;
             this.step = step;
             this.cellIdx = cellIdx;
@@ -29,12 +30,14 @@ public class AnalysisLogger {
             this.regionId = regionId;
             this.regionContent = regionContent;
             this.sourceHints = sourceHints;
+            this.triggerCells = triggerCells;
         }
 
         public String toCSVString() {
             // カンマを含む可能性のあるフィールドはダブルクォートで囲む
-            return String.format("%d,%d,%d,%s,%d,%d,\"%s\",\"%s\"",
-                    round, step, cellIdx, result, difficultyLevel, regionId, regionContent, sourceHints);
+            return String.format("%d,%d,%d,%s,%d,%d,\"%s\",\"%s\",\"%s\"",
+                    round, step, cellIdx, result, difficultyLevel, regionId,
+                    regionContent, sourceHints, triggerCells);
         }
     }
 
@@ -55,13 +58,21 @@ public class AnalysisLogger {
     }
 
     /**
-     * 確定ステップをログに記録する
+     * 確定ステップをログに記録する（後方互換性のため維持）
      */
     public void logStep(int round, int cellIdx, String result, int level,
             int regionId, String regionContent, String sourceHints) {
+        logStep(round, cellIdx, result, level, regionId, regionContent, sourceHints, "");
+    }
+
+    /**
+     * ★追加: 確定ステップをログに記録する（Trigger付き）
+     */
+    public void logStep(int round, int cellIdx, String result, int level,
+            int regionId, String regionContent, String sourceHints, String triggerCells) {
         this.stepCounter++;
         logs.add(new LogEntry(round, stepCounter, cellIdx, result, level,
-                regionId, regionContent, sourceHints));
+                regionId, regionContent, sourceHints, triggerCells));
     }
 
     /**
@@ -69,8 +80,9 @@ public class AnalysisLogger {
      */
     public void exportToCSV(String filename) {
         try (FileWriter writer = new FileWriter(filename)) {
-            // ヘッダー行
-            writer.write("Round,Step,CellIndex,Result,DifficultyLevel,RegionID,RegionContent,SourceHints\n");
+            // ヘッダー行（★Trigger列を追加）
+            writer.write(
+                    "Round,Step,CellIndex,Result,DifficultyLevel,RegionID,RegionContent,SourceHints,TriggerCells\n");
 
             // データ行
             for (LogEntry entry : logs) {

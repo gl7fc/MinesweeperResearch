@@ -15,14 +15,25 @@ public class Region {
     // 生成元となったヒントのインデックス集合 (表示用)
     private final Set<Integer> sourceHints;
 
+    // ★追加: このRegionの更新トリガーとなった確定セル集合
+    // メンテナンス時に、どのセルの確定によってこのRegionが変化したかを記録
+    private final Set<Integer> triggerCells;
+
     // Region通し番号 (表示用)
     private int id = -1;
 
+    // 既存コンストラクタ（後方互換性のため維持）
     public Region(Set<Integer> cells, int mines, int originLevel) {
+        this(cells, mines, originLevel, new HashSet<>());
+    }
+
+    // ★追加: triggerCellsを指定するコンストラクタ
+    public Region(Set<Integer> cells, int mines, int originLevel, Set<Integer> triggerCells) {
         this.cells = Collections.unmodifiableSet(new HashSet<>(cells));
         this.mines = mines;
         this.originLevel = originLevel;
         this.sourceHints = new HashSet<>();
+        this.triggerCells = Collections.unmodifiableSet(new HashSet<>(triggerCells));
     }
 
     public void setId(int id) {
@@ -45,6 +56,21 @@ public class Region {
         if (sourceHints.isEmpty())
             return "Derived";
         return sourceHints.stream()
+                .sorted()
+                .map(String::valueOf)
+                .collect(Collectors.joining(","));
+    }
+
+    // ★追加: triggerCellsのgetter
+    public Set<Integer> getTriggerCells() {
+        return triggerCells;
+    }
+
+    // ★追加: triggerCellsの文字列表現
+    public String getTriggerCellsString() {
+        if (triggerCells.isEmpty())
+            return "";
+        return triggerCells.stream()
                 .sorted()
                 .map(String::valueOf)
                 .collect(Collectors.joining(","));
@@ -82,6 +108,7 @@ public class Region {
 
         int derivedLevel = Math.max(newLevel, Math.max(this.originLevel, other.originLevel));
 
+        // 初期生成時はtriggerCellsは空
         Region newRegion = new Region(newCells, newMines, derivedLevel);
         newRegion.addSourceHints(this.sourceHints);
         newRegion.addSourceHints(other.sourceHints);
@@ -155,7 +182,8 @@ public class Region {
                 .sorted()
                 .map(String::valueOf)
                 .collect(Collectors.joining(", ", "{", "}"));
-        return String.format("%s(Lv%d)=%d", cellStr, originLevel, mines);
+        String triggerStr = triggerCells.isEmpty() ? "" : " trigger=" + getTriggerCellsString();
+        return String.format("%s(Lv%d)=%d%s", cellStr, originLevel, mines, triggerStr);
     }
 
     public String toLogString() {
