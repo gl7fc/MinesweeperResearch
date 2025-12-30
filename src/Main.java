@@ -11,39 +11,39 @@ public class Main {
         int puzzles = 1;
 
         // サイズ・地雷数を指定してランダムなパズルを生成
-        int[] board = PuzzleGenerator.generatePuzzle(size, bombs);
-        // int[] board = {
-        // 2, 2, 2, -1, 1, 1, 2, -1, 2, 1,
-        // -1, -1, 2, 1, 1, 1, -1, 2, 2, -1,
-        // -1, 4, 2, 1, 1, 2, 2, 3, 2, 2,
-        // -1, 3, 3, -1, 4, 3, -1, 2, -1, 1,
-        // 2, 4, -1, -1, -1, -1, 2, 2, 1, 1,
-        // -1, 4, -1, 6, -1, 3, 1, 0, 0, 0,
-        // -1, 3, 2, -1, 3, 2, 0, 1, 2, 2,
-        // 1, 2, 3, 5, -1, 2, 1, 3, -1, -1,
-        // 0, 1, -1, -1, -1, 3, 3, -1, -1, 3,
-        // 0, 1, 2, 3, 2, 2, -1, -1, 3, 1,
-        // };
+        // int[] board = PuzzleGenerator.generatePuzzle(size, bombs);
+        int[] board = {
+                1, -1, 1, 2, -1, 2, 0, 0, 2, -1,
+                2, 2, 1, 2, -1, 3, 1, 1, 2, -1,
+                -1, 2, 0, 1, 2, 4, -1, 2, 1, 1,
+                -1, 4, 1, 0, 1, -1, -1, 3, 1, 0,
+                -1, -1, 1, 0, 1, 2, 4, -1, 3, 1,
+                2, 2, 2, 1, 2, 1, 3, -1, -1, 2,
+                1, 1, 3, -1, 5, -1, 3, 4, -1, 3,
+                1, -1, 4, -1, -1, -1, 2, 2, -1, 2,
+                2, 3, 4, -1, 5, 4, 4, 4, 3, 2,
+                -1, 2, -1, 2, 2, -1, -1, -1, -1, 1
+        };
 
         System.out.println("===== 初期盤面 (正解) =====");
         PuzzleGenerator.printBoard(board, size);
 
         for (int i = 0; i < puzzles; i++) {
             // パズル(問題)を生成
-            PuzzleMinimizer pm = new PuzzleMinimizer(board, size);
-            int[] puzzle = pm.minimizeHints();
-            // int[] puzzle = {
-            // -1, 2, -1, -1, -1, 1, -1, -1, -1, 1,
-            // -1, -1, 2, -1, 1, -1, -1, 2, -1, -1,
-            // -1, 4, -1, 1, -1, 2, -1, 3, 2, 2,
-            // -1, 3, 3, -1, 4, 3, -1, -1, -1, -1,
-            // -1, 4, -1, -1, -1, -1, -1, 2, -1, 1,
-            // -1, 4, -1, -1, -1, -1, 1, -1, -1, 0,
-            // -1, 3, 2, -1, -1, 2, -1, -1, -1, 2,
-            // -1, -1, -1, 5, -1, 2, -1, 3, -1, -1,
-            // -1, -1, -1, -1, -1, 3, 3, -1, -1, -1,
-            // -1, 1, -1, -1, 2, 2, -1, -1, -1, 1
-            // };
+            // PuzzleMinimizer pm = new PuzzleMinimizer(board, size);
+            // int[] puzzle = pm.minimizeHints();
+            int[] puzzle = {
+                    1, -1, -1, -1, -1, 2, 0, -1, 2, -1,
+                    2, 2, 1, -1, -1, 3, -1, -1, -1, -1,
+                    -1, 2, -1, -1, 2, -1, -1, 2, -1, 1,
+                    -1, -1, -1, -1, -1, -1, -1, 3, -1, -1,
+                    -1, -1, 1, -1, -1, 2, 4, -1, 3, -1,
+                    -1, 2, -1, -1, -1, -1, -1, -1, -1, -1,
+                    -1, 1, 3, -1, 5, -1, -1, 4, -1, -1,
+                    -1, -1, -1, -1, -1, -1, 2, -1, -1, 2,
+                    2, -1, 4, -1, 5, 4, -1, -1, 3, -1,
+                    -1, 2, -1, 2, 2, -1, -1, -1, -1, 1
+            };
 
             // パズルをテキストファイルに出力
             PuzzleExporter.exportPuzzle("puzzle_" + (i + 1) + ".txt", board, puzzle, size);
@@ -51,24 +51,25 @@ public class Main {
             System.out.println("\n===== 生成された問題 (盤面" + (i + 1) + ") =====");
             PuzzleGenerator.printBoard(puzzle, size);
 
-            // ---------------------------------------------------
-            // 1. HintCountCalculator を使用して難易度を判定 (既存)
-            // ---------------------------------------------------
-            System.out.println("\n--- [HintCountCalculator] 難易度解析実行中... ---");
+            // // ---------------------------------------------------
+            // // 1. HintCountCalculator を使用して難易度を判定 (既存)
+            // // ---------------------------------------------------
+            // System.out.println("\n--- [HintCountCalculator] 難易度解析実行中... ---");
 
-            // puzzle: 問題, board: 正解, size: サイズ
-            HintCountCalculator calculator = new HintCountCalculator(puzzle, board, size);
+            // // puzzle: 問題, board: 正解, size: サイズ
+            // HintCountCalculator calculator = new HintCountCalculator(puzzle, board,
+            // size);
 
-            // 計算実行
-            calculator.calculate();
+            // // 計算実行
+            // calculator.calculate();
 
-            // 結果取得
-            int[] difficulties = calculator.getDifficultyMap();
+            // // 結果取得
+            // int[] difficulties = calculator.getDifficultyMap();
 
-            // 結果表示
-            System.out.println("--- 解析結果 (k-Hint) ---");
-            System.out.println(" [数字]: そのセルを解くのに必要だったヒント数(k)");
-            printAnalysis(puzzle, difficulties, size);
+            // // 結果表示
+            // System.out.println("--- 解析結果 (k-Hint) ---");
+            // System.out.println(" [数字]: そのセルを解くのに必要だったヒント数(k)");
+            // printAnalysis(puzzle, difficulties, size);
 
             // ---------------------------------------------------
             // 2. TechniqueAnalyzer を使用して難易度を判定 (新規追加)

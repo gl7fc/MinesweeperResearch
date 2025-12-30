@@ -5,6 +5,11 @@ import java.util.List;
 
 /**
  * 解析の過程を記録し , CSVファイルに出力するクラス
+ * 
+ * ★追加機能: 親子関係追跡情報の出力
+ * - TriggerCells: このセルを確定させた直接の原因となったRegionのトリガーセル
+ * - ParentSnapshot: 確定元Regionの親スナップショット
+ * - GenerationDepth: 確定元Regionの派生深度
  */
 public class AnalysisLogger {
 
@@ -18,10 +23,14 @@ public class AnalysisLogger {
         int regionId;
         String regionContent;
         String sourceHints;
-        String triggerCells; // ★追加: トリガーセル
+        // ★追加フィールド
+        String triggerCells; // このセル確定の元となったRegion更新のトリガー
+        String parentSnapshot; // 確定元Regionの親スナップショット
+        int generationDepth; // 確定元Regionの派生深度
 
         public LogEntry(int round, int step, int cellIdx, String result, int difficultyLevel,
-                int regionId, String regionContent, String sourceHints, String triggerCells) {
+                int regionId, String regionContent, String sourceHints,
+                String triggerCells, String parentSnapshot, int generationDepth) {
             this.round = round;
             this.step = step;
             this.cellIdx = cellIdx;
@@ -31,19 +40,15 @@ public class AnalysisLogger {
             this.regionContent = regionContent;
             this.sourceHints = sourceHints;
             this.triggerCells = triggerCells;
+            this.parentSnapshot = parentSnapshot;
+            this.generationDepth = generationDepth;
         }
 
         public String toCSVString() {
-            // ★修正: NULL値（-1や空文字）を適切に出力
-            String stepStr = (step == 0) ? "" : String.valueOf(step);
-            String resultStr = result.isEmpty() ? "" : result;
-            String levelStr = (difficultyLevel < 0) ? "" : String.valueOf(difficultyLevel);
-            String regionIdStr = (regionId < 0) ? "" : String.valueOf(regionId);
-
             // カンマを含む可能性のあるフィールドはダブルクォートで囲む
-            return String.format("%d,%s,%d,%s,%s,%s,\"%s\",\"%s\",\"%s\"",
-                    round, stepStr, cellIdx, resultStr, levelStr, regionIdStr,
-                    regionContent, sourceHints, triggerCells);
+            return String.format("%d,%d,%d,%s,%d,%d,\"%s\",\"%s\",\"%s\",\"%s\",%d",
+                    round, step, cellIdx, result, difficultyLevel, regionId,
+                    regionContent, sourceHints, triggerCells, parentSnapshot, generationDepth);
         }
     }
 
@@ -64,29 +69,24 @@ public class AnalysisLogger {
     }
 
     /**
-     * ★追加: 初期ヒントセルをログに記録する（Round 0, 他はNULL）
-     */
-    public void logHint(int cellIdx) {
-        // Round=0, Step=0, CellIndex=cellIdx, 他はNULL
-        logs.add(new LogEntry(0, 0, cellIdx, "", -1, -1, "", "", ""));
-    }
-
-    /**
-     * 確定ステップをログに記録する（後方互換性のため維持）
+     * 確定ステップをログに記録する（従来版、後方互換）
      */
     public void logStep(int round, int cellIdx, String result, int level,
             int regionId, String regionContent, String sourceHints) {
-        logStep(round, cellIdx, result, level, regionId, regionContent, sourceHints, "");
+        // 従来のメソッドは新しいメソッドに委譲（親子関係は空）
+        logStep(round, cellIdx, result, level, regionId, regionContent, sourceHints, "", "", 0);
     }
 
     /**
-     * ★追加: 確定ステップをログに記録する（Trigger付き）
+     * ★追加: 親子関係情報付きの確定ステップをログに記録する
      */
     public void logStep(int round, int cellIdx, String result, int level,
-            int regionId, String regionContent, String sourceHints, String triggerCells) {
+            int regionId, String regionContent, String sourceHints,
+            String triggerCells, String parentSnapshot, int generationDepth) {
         this.stepCounter++;
         logs.add(new LogEntry(round, stepCounter, cellIdx, result, level,
-                regionId, regionContent, sourceHints, triggerCells));
+                regionId, regionContent, sourceHints,
+                triggerCells, parentSnapshot, generationDepth));
     }
 
     /**
@@ -94,9 +94,9 @@ public class AnalysisLogger {
      */
     public void exportToCSV(String filename) {
         try (FileWriter writer = new FileWriter(filename)) {
-            // ヘッダー行（★Trigger列を追加）
+            // ★ヘッダー行（拡張版）
             writer.write(
-                    "Round,Step,CellIndex,Result,DifficultyLevel,RegionID,RegionContent,SourceHints,TriggerCells\n");
+                    "Round,Step,CellIndex,Result,DifficultyLevel,RegionID,RegionContent,SourceHints,TriggerCells,ParentSnapshot,GenerationDepth\n");
 
             // データ行
             for (LogEntry entry : logs) {

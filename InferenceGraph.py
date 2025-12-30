@@ -81,7 +81,7 @@ def build_graph_data(rows: list[dict]) -> tuple[dict, list[tuple]]:
     CSVデータからノードとエッジを構築
     
     Returns:
-        nodes: {cell_index: {"result": str, "round": int, "level": int}}
+        nodes: {cell_index: {"result": str, "depth": int, "level": int}}
         edges: [(from_cell, to_cell, level), ...]
     """
     nodes = {}
@@ -100,7 +100,7 @@ def build_graph_data(rows: list[dict]) -> tuple[dict, list[tuple]]:
             continue
             
         result = row.get("Result", "").strip()
-        round_num = safe_int(row.get("Round", ""), 0)
+        depth = safe_int(row.get("GenerationDepth", ""), 0)  # GenerationDepthを使用
         level = safe_int(row.get("DifficultyLevel", ""), 0)
         source_hints = parse_cell_list(row.get("SourceHints", ""))
         trigger_cells = parse_cell_list(row.get("TriggerCells", ""))
@@ -108,7 +108,7 @@ def build_graph_data(rows: list[dict]) -> tuple[dict, list[tuple]]:
         # ノード追加
         nodes[cell_idx] = {
             "result": result,
-            "round": round_num,
+            "depth": depth,
             "level": level,
         }
         
@@ -134,18 +134,18 @@ def generate_dot(nodes: dict, edges: list[tuple], title: str = "Inference Graph"
     lines.append("    edge [fontname=\"Helvetica\", fontsize=10];")
     lines.append("")
     
-    # ラウンドごとにノードをグループ化
-    rounds = {}
+    # 深さごとにノードをグループ化
+    depths = {}
     for cell_idx, data in nodes.items():
-        r = data["round"]
-        if r not in rounds:
-            rounds[r] = []
-        rounds[r].append(cell_idx)
+        d = data["depth"]
+        if d not in depths:
+            depths[d] = []
+        depths[d].append(cell_idx)
     
-    # 各ラウンドをサブグラフとして定義（同じ深さに配置）
-    for round_num in sorted(rounds.keys()):
-        cells = rounds[round_num]
-        lines.append(f"    // Round {round_num}")
+    # 各深さをサブグラフとして定義（同じ深さに配置）
+    for depth in sorted(depths.keys()):
+        cells = depths[depth]
+        lines.append(f"    // Depth {depth}")
         lines.append("    {")
         lines.append("        rank=same;")
         for cell_idx in sorted(cells):
