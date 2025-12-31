@@ -108,7 +108,7 @@ def create_heatmap_figure(boards, size, output_file=None):
                     facecolor='white', edgecolor='none')
         print(f"✅ Heatmap saved to: {output_file}")
     
-    plt.show()
+    plt.close(fig)  # メモリ解放
     return fig
 
 
