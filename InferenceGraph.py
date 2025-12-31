@@ -149,7 +149,7 @@ def generate_dot(nodes: dict, edges: list[tuple], title: str = "Inference Graph"
     # 左端の深さラベル用ノードを定義
     lines.append("    // Depth labels (left side)")
     for depth in sorted(depths.keys()):
-        lines.append(f'    depth_label_{depth} [label="{depth}", shape=plaintext, fontsize=24, fontname="Helvetica-Bold", fontcolor="#333333"];')
+        lines.append(f'    depth_label_{depth} [label="{depth}", shape=plaintext, fontsize=24, fontname="Helvetica", fontcolor="#333333"];')
     lines.append("")
     
     # 水平線用の右端ノード（不可視）
@@ -185,11 +185,11 @@ def generate_dot(nodes: dict, edges: list[tuple], title: str = "Inference Graph"
         lines.append("    }")
         lines.append("")
     
-    # 水平線（深さラベルから右端への太い線）
-    lines.append("    // Horizontal separator lines")
-    for depth in sorted(depths.keys()):
-        lines.append(f'    depth_label_{depth} -> depth_right_{depth} [style=bold, color="#000000", arrowhead=none, weight=1000];')
-    lines.append("")
+    # # 水平線（深さラベルから右端への太い線）
+    # lines.append("    // Horizontal separator lines")
+    # for depth in sorted(depths.keys()):
+    #     lines.append(f'    depth_label_{depth} -> depth_right_{depth} [style=bold, color="#000000", arrowhead=none, weight=1000];')
+    # lines.append("")
     
     # 深さラベル間の順序を強制（不可視エッジ）
     lines.append("    // Force depth order")
@@ -206,35 +206,6 @@ def generate_dot(nodes: dict, edges: list[tuple], title: str = "Inference Graph"
         color = EDGE_COLORS.get(level, "#000000")
         label = f"Lv{level}"
         lines.append(f'    {from_cell} -> {to_cell} [label="{label}", color="{color}", fontcolor="{color}"];')
-    
-    lines.append("")
-    
-    # 凡例（Legend）- シンプル化
-    lines.append("    // Legend")
-    lines.append('    subgraph cluster_legend {')
-    lines.append('        label="Legend";')
-    lines.append('        fontsize=14;')
-    lines.append('        style=rounded;')
-    lines.append('        color="#888888";')
-    lines.append("")
-    lines.append("        // Node types")
-    lines.append(f'        legend_hint [label="Initial Hint", fillcolor="{NODE_COLORS["HINT"]}", shape=ellipse];')
-    lines.append(f'        legend_safe [label="SAFE", fillcolor="{NODE_COLORS["SAFE"]}", shape=ellipse];')
-    lines.append(f'        legend_mine [label="MINE", fillcolor="{NODE_COLORS["MINE"]}", shape=ellipse];')
-    lines.append("")
-    lines.append("        // Edge types (invisible edges for layout)")
-    lines.append("        legend_hint -> legend_safe -> legend_mine [style=invis];")
-    lines.append("")
-    
-    # エッジ凡例
-    for lv in range(1, 7):
-        color = EDGE_COLORS[lv]
-        name = LEVEL_NAMES[lv]
-        lines.append(f'        legend_lv{lv}_a [label="", shape=point, width=0.1];')
-        lines.append(f'        legend_lv{lv}_b [label="Lv{lv}: {name}", shape=plaintext];')
-        lines.append(f'        legend_lv{lv}_a -> legend_lv{lv}_b [label="Lv{lv}", color="{color}", fontcolor="{color}"];')
-    
-    lines.append("    }")
     
     lines.append("}")
     
