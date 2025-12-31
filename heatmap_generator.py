@@ -15,7 +15,22 @@ import matplotlib.font_manager as fm
 
 def setup_japanese_font():
     """日本語フォントを設定（利用可能な場合）"""
-    japanese_fonts = ['IPAGothic', 'IPAPGothic', 'Noto Sans CJK JP', 'TakaoPGothic', 'VL Gothic']
+    # macOS, Linux, Windows の順で日本語フォントを試行
+    japanese_fonts = [
+        # macOS
+        'Hiragino Sans',
+        'Hiragino Kaku Gothic Pro',
+        'Hiragino Maru Gothic Pro',
+        # Linux
+        'IPAGothic',
+        'IPAPGothic', 
+        'Noto Sans CJK JP',
+        'TakaoPGothic',
+        # Windows
+        'MS Gothic',
+        'Meiryo',
+        'Yu Gothic',
+    ]
     for font_name in japanese_fonts:
         try:
             fm.findfont(font_name, fallback_to_default=False)
@@ -68,7 +83,7 @@ def create_heatmap_figure(boards, size, output_file=None):
     """3つのヒートマップを横並びで生成"""
     
     fig, axes = plt.subplots(1, 3, figsize=(18, 6))
-    # fig.suptitle('Minesweeper Difficulty Analysis', fontsize=16, fontweight='bold', y=0.98)
+    # fig.suptitle('マインスイーパ難易度解析', fontsize=16, fontweight='bold', y=0.98)
     
     puzzle = boards.get('PuzzleBoard', np.zeros((size, size)))
     technique = boards.get('TechniqueLevel', np.zeros((size, size)))
@@ -76,15 +91,15 @@ def create_heatmap_figure(boards, size, output_file=None):
     
     # --- 1. 問題盤面 (左) ---
     plot_puzzle_board(axes[0], puzzle, size)
-    axes[0].set_title('Puzzle Board', fontsize=12, fontweight='bold')
+    axes[0].set_title('初期盤面', fontsize=12, fontweight='bold')
     
     # --- 2. k-Hint Difficulty (中央) ---
     plot_khint_heatmap(axes[1], khint, puzzle, size)
-    axes[1].set_title('k-Hint (Required Hints)', fontsize=12, fontweight='bold')
+    axes[1].set_title('必要ヒント数', fontsize=12, fontweight='bold')
     
     # --- 3. Technique Level (右) ---
     plot_technique_heatmap(axes[2], technique, puzzle, size)
-    axes[2].set_title('Technique Level', fontsize=12, fontweight='bold')
+    axes[2].set_title('必要テクニック', fontsize=12, fontweight='bold')
     
     plt.tight_layout()
     
