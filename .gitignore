@@ -1,12 +1,27 @@
 .DS_Store
 
-*.csv
--1.class
+# Compiled class files
+*.class
 bin/
 out/
 build/
 target/
+
+# IDE settings
 .classpath
 .project
 .settings/
 .vscode/
+
+# Experiment outputs
+experiment_results/
+*.png
+analysis_log*.csv
+heatmap_data*.csv
+summary.csv
+summary.xlsx
+
+# Board files (generated)
+puzzle_*.txt
+puzzle.txt
+solution.txt

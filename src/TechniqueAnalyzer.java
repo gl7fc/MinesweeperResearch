@@ -110,12 +110,12 @@ public class TechniqueAnalyzer {
 
         while (changed) {
             changed = false;
-            System.out.println("\n--- Round " + currentRound + " Start ---");
+            // System.out.println("\n--- Round " + currentRound + " Start ---");
 
             // ロガーにラウンド開始を通知
             logger.startNewRound();
 
-            printCurrentBoard("Start of Round " + currentRound);
+            // printCurrentBoard("Start of Round " + currentRound);
 
             // 1. Regionの生成とメンテナンス
             // ★修正: lastConfirmedCellsを渡してtriggerCellsを計算
@@ -132,8 +132,9 @@ public class TechniqueAnalyzer {
             DeductionResult result = solveFromPool(board, regionPool);
 
             if (!result.isEmpty()) {
-                System.out.println("Round " + currentRound + ": Found " + result.deduced.size() +
-                        " cells (Lv" + result.level + ").");
+                // System.out.println("Round " + currentRound + ": Found " +
+                // result.deduced.size() +
+                // " cells (Lv" + result.level + ").");
 
                 // ★ログ記録（親子関係情報付き）
                 logDeduction(result);
@@ -158,7 +159,8 @@ public class TechniqueAnalyzer {
                 currentRound++;
             } else {
                 // ★追加: Lv1~Lv3で確定できなかった場合、Lv4-6（背理法）を試す
-                System.out.println("Round " + currentRound + ": No cells solved by Lv1-3. Trying Lv4-6...");
+                // System.out.println("Round " + currentRound + ": No cells solved by Lv1-3.
+                // Trying Lv4-6...");
                 int[] lv4Result = solveLv4(); // [セルインデックス, 値, 難易度レベル] or null
 
                 if (lv4Result != null) {
@@ -166,7 +168,8 @@ public class TechniqueAnalyzer {
                     int value = lv4Result[1];
                     int level = lv4Result[2];
 
-                    System.out.println("Round " + currentRound + ": Found 1 cell (Lv" + level + ").");
+                    // System.out.println("Round " + currentRound + ": Found 1 cell (Lv" + level +
+                    // ").");
 
                     // ★追加: Lv4-6の推論深度を計算（周囲の確定セルのdepthの最大値+1）
                     int depth = calculateDepthForLv4(cellIdx);
@@ -187,7 +190,8 @@ public class TechniqueAnalyzer {
                     changed = true;
                     currentRound++;
                 } else {
-                    System.out.println("Round " + currentRound + ": No cells solved by Lv4-6 either.");
+                    // System.out.println("Round " + currentRound + ": No cells solved by Lv4-6
+                    // either.");
                 }
             }
         }
@@ -262,12 +266,12 @@ public class TechniqueAnalyzer {
             int depth = newDepths.get(cell);
             String type = (val == FLAGGED) ? "MINE" : "SAFE";
 
-            System.out.println("  -> Solved: Cell " + cell + " is " + type +
-                    " (via Region #" + r.getId() + ": " + r +
-                    " [Source: " + r.getSourceHintsString() + "]" +
-                    " [Trigger: " + r.getTriggerCellsString() + "]" +
-                    " [Parent: " + r.getParentRegionSnapshot() + "]" +
-                    " [Depth: " + depth + "])");
+            // System.out.println(" -> Solved: Cell " + cell + " is " + type +
+            // " (via Region #" + r.getId() + ": " + r +
+            // " [Source: " + r.getSourceHintsString() + "]" +
+            // " [Trigger: " + r.getTriggerCellsString() + "]" +
+            // " [Parent: " + r.getParentRegionSnapshot() + "]" +
+            // " [Depth: " + depth + "])");
 
             // ログ記録（親子関係情報付き）
             logger.logStep(currentRound, cell, type, level,
@@ -677,7 +681,8 @@ public class TechniqueAnalyzer {
             }
         }
 
-        System.out.println("  [Lv4-6] Testing " + unknownCells.size() + " unknown cells...");
+        // System.out.println(" [Lv4-6] Testing " + unknownCells.size() + " unknown
+        // cells...");
 
         // 各未確定セルについて背理法を試す
         for (int cellIdx : unknownCells) {
@@ -696,7 +701,8 @@ public class TechniqueAnalyzer {
                 wrongValueStr = "MINE";
             }
 
-            System.out.println("  [Lv4-6] Trying cell " + cellIdx + ": assuming " + wrongValueStr + "...");
+            // System.out.println(" [Lv4-6] Trying cell " + cellIdx + ": assuming " +
+            // wrongValueStr + "...");
 
             // 一時盤面を作成し仮置き
             int[] tempBoard = Arrays.copyOf(board, board.length);
@@ -730,10 +736,11 @@ public class TechniqueAnalyzer {
                 // ★追加: 周囲の確定セルをtriggerCellsとして取得
                 String triggerCellsStr = getTriggerCellsForLv4(cellIdx);
 
-                System.out.println("  -> [Lv" + finalLevel + "] Cell " + cellIdx + " is " + type +
-                        " (contradiction at Lv" + contradictionLevel + ")" +
-                        " [Trigger: " + triggerCellsStr + "]" +
-                        " [Depth: " + depth + "]");
+                // System.out.println(" -> [Lv" + finalLevel + "] Cell " + cellIdx + " is " +
+                // type +
+                // " (contradiction at Lv" + contradictionLevel + ")" +
+                // " [Trigger: " + triggerCellsStr + "]" +
+                // " [Depth: " + depth + "]");
 
                 // ログ記録（親子関係情報付き）
                 logger.logStep(currentRound, cellIdx, type, finalLevel, -1,
@@ -743,7 +750,8 @@ public class TechniqueAnalyzer {
                 // 1セル確定したらすぐにreturn（Lv1に戻るため）
                 return new int[] { cellIdx, confirmedValue, finalLevel };
             } else {
-                System.out.println("  [Lv4-6] Cell " + cellIdx + ": no contradiction, skipping.");
+                // System.out.println(" [Lv4-6] Cell " + cellIdx + ": no contradiction,
+                // skipping.");
             }
         }
 
@@ -773,7 +781,8 @@ public class TechniqueAnalyzer {
             int contradictionLevel = checkContradiction(tempBoard, tempPool);
             if (contradictionLevel > 0) {
                 int level = Math.max(maxLevelUsed, contradictionLevel);
-                System.out.println("    [Contradiction] Found in iteration " + iteration + " (Level " + level + ")");
+                // System.out.println(" [Contradiction] Found in iteration " + iteration + "
+                // (Level " + level + ")");
                 return level;
             }
 
@@ -781,8 +790,9 @@ public class TechniqueAnalyzer {
             SolveResult result = solveFromPoolForContradiction(tempBoard, tempPool);
 
             if (result.solvedCount > 0) {
-                System.out.println("    [Lv4-Lv" + result.maxLevel + "] Iteration " + iteration +
-                        ": solved " + result.solvedCount + " cells");
+                // System.out.println(" [Lv4-Lv" + result.maxLevel + "] Iteration " + iteration
+                // +
+                // ": solved " + result.solvedCount + " cells");
                 maxLevelUsed = Math.max(maxLevelUsed, result.maxLevel);
             } else {
                 // 何も確定できなければ終了
@@ -804,12 +814,14 @@ public class TechniqueAnalyzer {
         // 1. RegionPoolの矛盾チェック
         for (Region r : targetPool.values()) {
             if (r.getMines() < 0) {
-                System.out.println("    [Contradiction] Region " + r + ": mines=" + r.getMines() + " < 0");
+                // System.out.println(" [Contradiction] Region " + r + ": mines=" + r.getMines()
+                // + " < 0");
                 return r.getOriginLevel();
             }
             if (r.getMines() > r.size()) {
-                System.out
-                        .println("    [Contradiction] Region " + r + ": mines=" + r.getMines() + " > size=" + r.size());
+                // System.out
+                // .println(" [Contradiction] Region " + r + ": mines=" + r.getMines() + " >
+                // size=" + r.size());
                 return r.getOriginLevel();
             }
         }
@@ -839,14 +851,16 @@ public class TechniqueAnalyzer {
 
             // 矛盾1: フラグが多すぎる
             if (remainingMines < 0) {
-                System.out.println("    [Contradiction] Hint " + i + ": remainingMines=" + remainingMines
-                        + " < 0 (too many flags)");
+                // System.out.println(" [Contradiction] Hint " + i + ": remainingMines=" +
+                // remainingMines
+                // + " < 0 (too many flags)");
                 return LV_1;
             }
             // 矛盾2: 地雷を置く場所が足りない
             if (remainingMines > unknownCount) {
-                System.out.println("    [Contradiction] Hint " + i + ": remainingMines=" + remainingMines
-                        + " > unknownCount=" + unknownCount + " (not enough space)");
+                // System.out.println(" [Contradiction] Hint " + i + ": remainingMines=" +
+                // remainingMines
+                // + " > unknownCount=" + unknownCount + " (not enough space)");
                 return LV_1;
             }
         }

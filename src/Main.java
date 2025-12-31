@@ -4,7 +4,7 @@ public class Main {
     public static void main(String[] args) {
         int size = 10;
         int bombs = 30;
-        int puzzles = 1;
+        int puzzles = 10;
 
         // パズル生成
         int[] board = PuzzleGenerator.generatePuzzle(size, bombs);
