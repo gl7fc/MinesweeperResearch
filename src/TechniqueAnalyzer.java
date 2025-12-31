@@ -93,10 +93,14 @@ public class TechniqueAnalyzer {
      */
     public void analyze() {
         // 初期ヒントは難易度0、推論深度も0
+        // ★追加: 初期ヒントをログに出力（Round 0として）
         for (int i = 0; i < board.length; i++) {
             if (board[i] >= 0) {
                 difficultyMap[i] = 0;
-                cellDepthMap.put(i, 0); // ★追加: 初期ヒントはdepth=0
+                cellDepthMap.put(i, 0);
+
+                // ★追加: ログに記録
+                logger.logInitialHint(i, board[i]);
             }
         }
 

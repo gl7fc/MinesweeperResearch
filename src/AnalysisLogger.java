@@ -69,6 +69,29 @@ public class AnalysisLogger {
     }
 
     /**
+     * ★追加: 初期ヒントをログに記録する（Round 0, Depth 0）
+     * 
+     * @param cellIdx   ヒントセルのインデックス
+     * @param hintValue ヒントの数値
+     */
+    public void logInitialHint(int cellIdx, int hintValue) {
+        this.stepCounter++;
+        logs.add(new LogEntry(
+                0, // Round 0
+                stepCounter, // Step
+                cellIdx, // CellIndex
+                "HINT(" + hintValue + ")", // Result
+                0, // DifficultyLevel
+                -1, // RegionID (なし)
+                "", // RegionContent
+                "", // SourceHints
+                "", // TriggerCells
+                "", // ParentSnapshot
+                0 // GenerationDepth
+        ));
+    }
+
+    /**
      * 確定ステップをログに記録する（従来版、後方互換）
      */
     public void logStep(int round, int cellIdx, String result, int level,

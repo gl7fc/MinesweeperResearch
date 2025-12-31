@@ -132,6 +132,8 @@ def generate_dot(nodes: dict, edges: list[tuple], title: str = "Inference Graph"
     lines.append("    rankdir=TB;")  # Top to Bottom
     lines.append("    node [style=filled, fontname=\"Helvetica\"];")
     lines.append("    edge [fontname=\"Helvetica\", fontsize=10];")
+    lines.append("    newrank=true;")
+    lines.append("    splines=true;")
     lines.append("")
     
     # 深さごとにノードをグループ化
@@ -142,16 +144,31 @@ def generate_dot(nodes: dict, edges: list[tuple], title: str = "Inference Graph"
             depths[d] = []
         depths[d].append(cell_idx)
     
-    # 各深さをサブグラフとして定義（同じ深さに配置）
+    max_depth = max(depths.keys()) if depths else 0
+    
+    # 左端の深さラベル用ノードを定義
+    lines.append("    // Depth labels (left side)")
+    for depth in sorted(depths.keys()):
+        lines.append(f'    depth_label_{depth} [label="{depth}", shape=plaintext, fontsize=24, fontname="Helvetica-Bold", fontcolor="#333333"];')
+    lines.append("")
+    
+    # 水平線用の右端ノード（不可視）
+    lines.append("    // Right anchor nodes (invisible)")
+    for depth in sorted(depths.keys()):
+        lines.append(f'    depth_right_{depth} [label="", shape=none, width=0, height=0];')
+    lines.append("")
+    
+    # 各深さのノードをグループ化（同じランクに配置）
     for depth in sorted(depths.keys()):
         cells = depths[depth]
-        lines.append(f"    // Depth {depth}")
+        lines.append(f"    // Depth {depth} nodes")
         lines.append("    {")
         lines.append("        rank=same;")
+        lines.append(f"        depth_label_{depth};")
+        
         for cell_idx in sorted(cells):
             data = nodes[cell_idx]
             result = data["result"]
-            level = data["level"]
             
             # ノードの色
             color = NODE_COLORS.get(result, "#FFFFFF")
@@ -162,9 +179,26 @@ def generate_dot(nodes: dict, edges: list[tuple], title: str = "Inference Graph"
             else:
                 label = f"{cell_idx}\\n({result})"
             
-            lines.append(f'        {cell_idx} [label="{label}", fillcolor="{color}"];')
+            lines.append(f'        {cell_idx} [label="{label}", fillcolor="{color}", shape=ellipse];')
+        
+        lines.append(f"        depth_right_{depth};")
         lines.append("    }")
         lines.append("")
+    
+    # 水平線（深さラベルから右端への太い線）
+    lines.append("    // Horizontal separator lines")
+    for depth in sorted(depths.keys()):
+        lines.append(f'    depth_label_{depth} -> depth_right_{depth} [style=bold, color="#000000", arrowhead=none, weight=1000];')
+    lines.append("")
+    
+    # 深さラベル間の順序を強制（不可視エッジ）
+    lines.append("    // Force depth order")
+    sorted_depths = sorted(depths.keys())
+    for i in range(len(sorted_depths) - 1):
+        d1 = sorted_depths[i]
+        d2 = sorted_depths[i + 1]
+        lines.append(f'    depth_label_{d1} -> depth_label_{d2} [style=invis, weight=100];')
+    lines.append("")
     
     # エッジ定義
     lines.append("    // Edges")
@@ -175,7 +209,7 @@ def generate_dot(nodes: dict, edges: list[tuple], title: str = "Inference Graph"
     
     lines.append("")
     
-    # 凡例（Legend）
+    # 凡例（Legend）- シンプル化
     lines.append("    // Legend")
     lines.append('    subgraph cluster_legend {')
     lines.append('        label="Legend";')
@@ -184,9 +218,9 @@ def generate_dot(nodes: dict, edges: list[tuple], title: str = "Inference Graph"
     lines.append('        color="#888888";')
     lines.append("")
     lines.append("        // Node types")
-    lines.append(f'        legend_hint [label="Initial Hint", fillcolor="{NODE_COLORS["HINT"]}", shape=box];')
-    lines.append(f'        legend_safe [label="SAFE", fillcolor="{NODE_COLORS["SAFE"]}", shape=box];')
-    lines.append(f'        legend_mine [label="MINE", fillcolor="{NODE_COLORS["MINE"]}", shape=box];')
+    lines.append(f'        legend_hint [label="Initial Hint", fillcolor="{NODE_COLORS["HINT"]}", shape=ellipse];')
+    lines.append(f'        legend_safe [label="SAFE", fillcolor="{NODE_COLORS["SAFE"]}", shape=ellipse];')
+    lines.append(f'        legend_mine [label="MINE", fillcolor="{NODE_COLORS["MINE"]}", shape=ellipse];')
     lines.append("")
     lines.append("        // Edge types (invisible edges for layout)")
     lines.append("        legend_hint -> legend_safe -> legend_mine [style=invis];")

@@ -1,126 +1,80 @@
-import java.util.Arrays;
+import java.util.*;
 
-/**
- * マインスイーパ難易度解析 メインクラス
- * 世代別解析(GenerationSolver) と 必要ヒント数解析(HintCountCalculator) を比較実行する.
- */
 public class Main {
     public static void main(String[] args) {
         int size = 10;
-        int bombs = 30; // 難易度調整 (少し簡単に)
+        int bombs = 30;
         int puzzles = 1;
 
-        // サイズ・地雷数を指定してランダムなパズルを生成
-        // int[] board = PuzzleGenerator.generatePuzzle(size, bombs);
-        int[] board = {
-                1, -1, 1, 2, -1, 2, 0, 0, 2, -1,
-                2, 2, 1, 2, -1, 3, 1, 1, 2, -1,
-                -1, 2, 0, 1, 2, 4, -1, 2, 1, 1,
-                -1, 4, 1, 0, 1, -1, -1, 3, 1, 0,
-                -1, -1, 1, 0, 1, 2, 4, -1, 3, 1,
-                2, 2, 2, 1, 2, 1, 3, -1, -1, 2,
-                1, 1, 3, -1, 5, -1, 3, 4, -1, 3,
-                1, -1, 4, -1, -1, -1, 2, 2, -1, 2,
-                2, 3, 4, -1, 5, 4, 4, 4, 3, 2,
-                -1, 2, -1, 2, 2, -1, -1, -1, -1, 1
-        };
-
+        // パズル生成
+        int[] board = PuzzleGenerator.generatePuzzle(size, bombs);
         System.out.println("===== 初期盤面 (正解) =====");
         PuzzleGenerator.printBoard(board, size);
 
         for (int i = 0; i < puzzles; i++) {
-            // パズル(問題)を生成
-            // PuzzleMinimizer pm = new PuzzleMinimizer(board, size);
-            // int[] puzzle = pm.minimizeHints();
-            int[] puzzle = {
-                    1, -1, -1, -1, -1, 2, 0, -1, 2, -1,
-                    2, 2, 1, -1, -1, 3, -1, -1, -1, -1,
-                    -1, 2, -1, -1, 2, -1, -1, 2, -1, 1,
-                    -1, -1, -1, -1, -1, -1, -1, 3, -1, -1,
-                    -1, -1, 1, -1, -1, 2, 4, -1, 3, -1,
-                    -1, 2, -1, -1, -1, -1, -1, -1, -1, -1,
-                    -1, 1, 3, -1, 5, -1, -1, 4, -1, -1,
-                    -1, -1, -1, -1, -1, -1, 2, -1, -1, 2,
-                    2, -1, 4, -1, 5, 4, -1, -1, 3, -1,
-                    -1, 2, -1, 2, 2, -1, -1, -1, -1, 1
-            };
-
-            // パズルをテキストファイルに出力
-            PuzzleExporter.exportPuzzle("puzzle_" + (i + 1) + ".txt", board, puzzle, size);
+            // 問題生成
+            PuzzleMinimizer pm = new PuzzleMinimizer(board, size);
+            int[] puzzle = pm.minimizeHints();
 
             System.out.println("\n===== 生成された問題 (盤面" + (i + 1) + ") =====");
             PuzzleGenerator.printBoard(puzzle, size);
 
-            // // ---------------------------------------------------
-            // // 1. HintCountCalculator を使用して難易度を判定 (既存)
-            // // ---------------------------------------------------
-            // System.out.println("\n--- [HintCountCalculator] 難易度解析実行中... ---");
+            // --- HintCountCalculator 解析 ---
+            System.out.println("\n--- [HintCountCalculator] 難易度解析実行中... ---");
+            HintCountCalculator calculator = new HintCountCalculator(puzzle, board, size);
+            calculator.calculate();
+            int[] kHintDifficulties = calculator.getDifficultyMap();
 
-            // // puzzle: 問題, board: 正解, size: サイズ
-            // HintCountCalculator calculator = new HintCountCalculator(puzzle, board,
-            // size);
+            System.out.println("--- 解析結果 (k-Hint) ---");
+            printAnalysis(puzzle, kHintDifficulties, size);
 
-            // // 計算実行
-            // calculator.calculate();
-
-            // // 結果取得
-            // int[] difficulties = calculator.getDifficultyMap();
-
-            // // 結果表示
-            // System.out.println("--- 解析結果 (k-Hint) ---");
-            // System.out.println(" [数字]: そのセルを解くのに必要だったヒント数(k)");
-            // printAnalysis(puzzle, difficulties, size);
-
-            // ---------------------------------------------------
-            // 2. TechniqueAnalyzer を使用して難易度を判定 (新規追加)
-            // ---------------------------------------------------
+            // --- TechniqueAnalyzer 解析 ---
             System.out.println("\n--- [TechniqueAnalyzer] テクニック解析実行中... ---");
-
             TechniqueAnalyzer analyzer = new TechniqueAnalyzer(puzzle, board, size);
-
-            // 解析実行
             analyzer.analyze();
-
-            // ★追加: CSV出力
-            analyzer.exportLogToCSV("analysis_log_" + (i + 1) + ".csv");
-
-            // 結果取得
             int[] taDifficulties = analyzer.getDifficultyMap();
 
-            // 結果表示
             System.out.println("\n--- 解析結果 (Technique Level) ---");
-            System.out.println(" [ . ]: 初期ヒント");
-            System.out.println(" [ 1 ]: Lv1 (埋めるだけ)");
-            System.out.println(" [ 2 ]: Lv2 (包含)");
-            System.out.println(" [ 3 ]: Lv3 (共通)");
-            System.out.println(" [ 4 ]: Lv4 (仮置き+Lv1)");
-            System.out.println(" [ 5 ]: Lv5 (仮置き+Lv2)");
-            System.out.println(" [ 6 ]: Lv6 (仮置き+Lv3)");
-            System.out.println(" [ * ]: 論理的に確定できなかったセル\n");
-
             printAnalysis(puzzle, taDifficulties, size);
+
+            // --- ヒートマップ用データ出力 ---
+            System.out.println("\n--- Exporting data for heatmap... ---");
+            BoardExporter.exportToCSV(
+                    "analysis_data_" + (i + 1) + ".csv",
+                    size,
+                    board, // 正解盤面
+                    puzzle, // 問題盤面
+                    taDifficulties, // Technique Level
+                    kHintDifficulties // k-Hint
+            );
+
+            System.out.println("\nTo generate heatmap, run:");
+            System.out.println(
+                    "  python heatmap_generator.py analysis_data_" + (i + 1) + ".csv heatmap_" + (i + 1) + ".png");
         }
     }
 
     private static void printAnalysis(int[] puzzleBoard, int[] difficulties, int size) {
         for (int i = 0; i < size * size; i++) {
-            // 問題盤面で元々ヒント(0以上)だった場所
             if (puzzleBoard[i] >= 0) {
-                System.out.printf(" . ");
-            }
-            // 空白セルだった場所
-            else {
+                System.out.print(" . ");
+            } else {
                 int level = difficulties[i];
                 if (level == -1) {
-                    System.out.print(" * "); // 未解決
+                    System.out.print(" * ");
                 } else {
-                    System.out.printf(" %d ", level); // 難易度/レベル
+                    System.out.printf(" %d ", level);
                 }
             }
-
             if ((i + 1) % size == 0) {
                 System.out.println();
             }
         }
     }
 }
+
+// ===========================================================
+// ヒートマップ生成コマンド
+// ===========================================================
+// Java実行後:
+// python heatmap_generator.py analysis_data_1.csv heatmap_1.png
