@@ -15,11 +15,11 @@ public class ExperimentRunner {
     // ===========================================
     private static final int SIZE = 10; // 盤面サイズ
     private static final int[] MINE_COUNTS = { 30 }; // 地雷数（本番: {15, 20, 25, 30}）
-    private static final int LAYOUTS_PER_MINE = 10; // 地雷配置数（本番: 100）
+    private static final int LAYOUTS_PER_MINE = 1; // 地雷配置数（本番: 100）
     private static final int TRIALS_PER_LAYOUT = 10; // 試行数（本番: 20）
 
     // 出力ディレクトリ
-    private static final String OUTPUT_DIR = "experiment_results_02";
+    private static final String OUTPUT_DIR = "experiment_results_02/";
 
     // ===========================================
     // メイン処理
