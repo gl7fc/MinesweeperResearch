@@ -2,10 +2,16 @@
 """
 マインスイーパ推論グラフ可視化ツール
 CSVから推論の親子関係をGraphviz DOT形式で出力する
+
+使い方:
+    python InferenceGraph.py <input.csv> <output.png>
+    
+注意: この新バージョンを使用してください。argparseを使わないシンプル版です。
 """
 
 import csv
-import argparse
+import sys
+import subprocess
 from pathlib import Path
 
 
@@ -24,17 +30,6 @@ EDGE_COLORS = {
     4: "#DC143C",  # 赤 (Crimson)
     5: "#8B008B",  # 紫 (Dark Magenta)
     6: "#8B4513",  # 茶 (Saddle Brown)
-}
-
-# レベル名
-LEVEL_NAMES = {
-    0: "Initial",
-    1: "Base Hint",
-    2: "Subset",
-    3: "Intersection",
-    4: "Contradiction+Lv1",
-    5: "Contradiction+Lv2",
-    6: "Contradiction+Lv3",
 }
 
 
@@ -57,11 +52,9 @@ def parse_cell_list(cell_str: str) -> list[int]:
         x = x.strip()
         if not x:
             continue
-        # 数値のみ抽出（"Assumed:MINE" などはスキップ）
         try:
             result.append(int(x))
         except ValueError:
-            # 数値でない場合はスキップ
             pass
     return result
 
@@ -88,19 +81,20 @@ def build_graph_data(rows: list[dict]) -> tuple[dict, list[tuple]]:
     edges = []
     
     for i, row in enumerate(rows):
-        # 空行やヘッダー重複をスキップ
         cell_idx_str = row.get("CellIndex", "")
         if not cell_idx_str or cell_idx_str.strip() == "" or cell_idx_str == "CellIndex":
-            print(f"  Warning: Skipping row {i+1} (empty or invalid CellIndex)")
             continue
         
         cell_idx = safe_int(cell_idx_str, -1)
         if cell_idx < 0:
-            print(f"  Warning: Skipping row {i+1} (invalid CellIndex: {cell_idx_str})")
             continue
             
         result = row.get("Result", "").strip()
-        depth = safe_int(row.get("GenerationDepth", ""), 0)  # GenerationDepthを使用
+        # "HINT(数字)" の形式から "HINT" を抽出
+        if result.startswith("HINT"):
+            result = "HINT"
+        
+        depth = safe_int(row.get("GenerationDepth", ""), 0)
         level = safe_int(row.get("DifficultyLevel", ""), 0)
         source_hints = parse_cell_list(row.get("SourceHints", ""))
         trigger_cells = parse_cell_list(row.get("TriggerCells", ""))
@@ -129,7 +123,7 @@ def generate_dot(nodes: dict, edges: list[tuple], title: str = "Inference Graph"
     lines.append(f'    label="{title}";')
     lines.append("    labelloc=t;")
     lines.append("    fontsize=20;")
-    lines.append("    rankdir=TB;")  # Top to Bottom
+    lines.append("    rankdir=TB;")
     lines.append("    node [style=filled, fontname=\"Helvetica\"];")
     lines.append("    edge [fontname=\"Helvetica\", fontsize=10];")
     lines.append("    newrank=true;")
@@ -144,8 +138,6 @@ def generate_dot(nodes: dict, edges: list[tuple], title: str = "Inference Graph"
             depths[d] = []
         depths[d].append(cell_idx)
     
-    max_depth = max(depths.keys()) if depths else 0
-    
     # 左端の深さラベル用ノードを定義
     lines.append("    // Depth labels (left side)")
     for depth in sorted(depths.keys()):
@@ -158,7 +150,7 @@ def generate_dot(nodes: dict, edges: list[tuple], title: str = "Inference Graph"
         lines.append(f'    depth_right_{depth} [label="", shape=none, width=0, height=0];')
     lines.append("")
     
-    # 各深さのノードをグループ化（同じランクに配置）
+    # 各深さのノードをグループ化
     for depth in sorted(depths.keys()):
         cells = depths[depth]
         lines.append(f"    // Depth {depth} nodes")
@@ -170,10 +162,8 @@ def generate_dot(nodes: dict, edges: list[tuple], title: str = "Inference Graph"
             data = nodes[cell_idx]
             result = data["result"]
             
-            # ノードの色
             color = NODE_COLORS.get(result, "#FFFFFF")
             
-            # ノードのラベル
             if result == "HINT":
                 label = f"{cell_idx}"
             else:
@@ -184,12 +174,6 @@ def generate_dot(nodes: dict, edges: list[tuple], title: str = "Inference Graph"
         lines.append(f"        depth_right_{depth};")
         lines.append("    }")
         lines.append("")
-    
-    # # 水平線（深さラベルから右端への太い線）
-    # lines.append("    // Horizontal separator lines")
-    # for depth in sorted(depths.keys()):
-    #     lines.append(f'    depth_label_{depth} -> depth_right_{depth} [style=bold, color="#000000", arrowhead=none, weight=1000];')
-    # lines.append("")
     
     # 深さラベル間の順序を強制（不可視エッジ）
     lines.append("    // Force depth order")
@@ -213,66 +197,45 @@ def generate_dot(nodes: dict, edges: list[tuple], title: str = "Inference Graph"
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="マインスイーパ推論グラフ可視化ツール"
-    )
-    parser.add_argument(
-        "input_csv",
-        help="入力CSVファイルパス"
-    )
-    parser.add_argument(
-        "-o", "--output",
-        help="出力PNGファイルパス（省略時は入力ファイル名.png）"
-    )
-    parser.add_argument(
-        "-t", "--title",
-        default="Minesweeper Inference Graph",
-        help="グラフのタイトル"
-    )
-    parser.add_argument(
-        "-f", "--format",
-        default="png",
-        choices=["png", "svg", "pdf"],
-        help="出力フォーマット（デフォルト: png）"
-    )
+    if len(sys.argv) < 3:
+        print("Usage: python InferenceGraph.py <input.csv> <output.png>")
+        sys.exit(1)
     
-    args = parser.parse_args()
+    input_file = sys.argv[1]
+    output_file = sys.argv[2]
     
-    # 出力パス決定
-    input_path = Path(args.input_csv)
-    if args.output:
-        output_path = Path(args.output)
-    else:
-        output_path = input_path.with_suffix(f".{args.format}")
+    # 出力フォーマットを拡張子から判定
+    output_path = Path(output_file)
+    output_format = output_path.suffix[1:] if output_path.suffix else "png"
     
     # 処理実行
-    print(f"Reading: {input_path}")
-    rows = parse_csv(args.input_csv)
+    print(f"Reading: {input_file}")
+    rows = parse_csv(input_file)
     print(f"  -> {len(rows)} rows loaded")
     
     nodes, edges = build_graph_data(rows)
     print(f"  -> {len(nodes)} nodes, {len(edges)} edges")
     
-    dot_content = generate_dot(nodes, edges, args.title)
+    dot_content = generate_dot(nodes, edges, "Minesweeper Inference Graph")
     
     # Graphvizで直接画像出力
-    import subprocess
     try:
         result = subprocess.run(
-            ["dot", f"-T{args.format}", "-o", str(output_path)],
+            ["dot", f"-T{output_format}", "-o", output_file],
             input=dot_content,
             text=True,
             capture_output=True
         )
         if result.returncode != 0:
             print(f"Error: {result.stderr}")
-            return
-        print(f"Output: {output_path}")
+            sys.exit(1)
+        print(f"✅ Output: {output_file}")
     except FileNotFoundError:
         print("Error: Graphviz (dot) がインストールされていません")
         print("  macOS: brew install graphviz")
         print("  Ubuntu: sudo apt install graphviz")
         print("  Windows: https://graphviz.org/download/")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

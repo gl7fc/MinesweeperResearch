@@ -7,6 +7,8 @@ import java.util.*;
  * 実験構造:
  * 地雷数 M → 地雷配置 1〜N → 最小化試行 1〜T
  * 各試行で HintCountCalculator + TechniqueAnalyzer を実行
+ * 
+ * ★修正版: 画像ファイルのみをヒント数ごとにフォルダ分け
  */
 public class ExperimentRunner {
 
@@ -19,7 +21,7 @@ public class ExperimentRunner {
     private static final int TRIALS_PER_LAYOUT = 10; // 試行数（本番: 20）
 
     // 出力ディレクトリ
-    private static final String OUTPUT_DIR = "experiment_results_02/";
+    private static final String OUTPUT_DIR = "experiment_results_04/";
 
     // ===========================================
     // メイン処理
@@ -60,6 +62,10 @@ public class ExperimentRunner {
                 // 正解盤面を保存
                 saveBoardToFile(layoutDir + "/solution.txt", board, SIZE);
 
+                // ★可視化用ディレクトリを作成
+                String visualizationDir = layoutDir + "/visualizations";
+                new File(visualizationDir).mkdirs();
+
                 // 試行ループ
                 for (int trialId = 1; trialId <= TRIALS_PER_LAYOUT; trialId++) {
                     System.out.print("  Trial " + trialId + "... ");
@@ -82,6 +88,17 @@ public class ExperimentRunner {
                             trialDir);
 
                     allResults.add(result);
+
+                    // ★画像ファイル用のヒント数別ディレクトリを作成
+                    String hintDir = visualizationDir + "/hints_" + hintCount;
+                    new File(hintDir).mkdirs();
+
+                    // ★画像生成（ヒント数別フォルダに保存）
+                    generateVisualizations(
+                            trialDir + "/heatmap_data.csv",
+                            trialDir + "/analysis_log.csv",
+                            hintDir,
+                            trialId);
 
                     System.out.println("ヒント数=" + hintCount + ", Lv_max=" + result.lvMax);
                 }
@@ -131,7 +148,7 @@ public class ExperimentRunner {
         computeTechniqueStats(result, lvMap, puzzle);
 
         // -----------------------------------------
-        // ファイル出力
+        // ファイル出力（CSVは従来通りtrialDirに保存）
         // -----------------------------------------
 
         // Analysis Log (TechniqueAnalyzerのログ)
@@ -142,6 +159,67 @@ public class ExperimentRunner {
                 size, board, puzzle, lvMap, kHintMap);
 
         return result;
+    }
+
+    // ===========================================
+    // 可視化生成
+    // ===========================================
+    /**
+     * ヒートマップと推論グラフを生成
+     * 
+     * @param heatmapDataPath ヒートマップ用CSVのパス
+     * @param analysisLogPath 推論ログCSVのパス
+     * @param outputDir       出力先ディレクトリ（ヒント数別フォルダ）
+     * @param trialId         試行ID
+     */
+    private static void generateVisualizations(
+            String heatmapDataPath,
+            String analysisLogPath,
+            String outputDir,
+            int trialId) {
+
+        String trialPrefix = "trial_" + String.format("%02d", trialId);
+
+        // ヒートマップ生成
+        String heatmapOutput = outputDir + "/" + trialPrefix + "_heatmap.png";
+        runPythonScript("heatmap_generator.py", heatmapDataPath, heatmapOutput);
+
+        // 推論グラフ生成
+        String graphOutput = outputDir + "/" + trialPrefix + "_inference_graph.png";
+        runPythonScript("InferenceGraph.py", analysisLogPath, graphOutput);
+    }
+
+    /**
+     * Pythonスクリプトを実行
+     */
+    private static void runPythonScript(String scriptName, String inputFile, String outputFile) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder("python3", scriptName, inputFile, outputFile);
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+
+            // 出力を読み取る（エラーメッセージを表示）
+            BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream()));
+            String line;
+            StringBuilder output = new StringBuilder();
+            while ((line = reader.readLine()) != null) {
+                output.append(line).append("\n");
+            }
+
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                System.err.println("  ⚠️  Python script failed: " + scriptName + " (exit code: " + exitCode + ")");
+                System.err.println("     Command: python3 " + scriptName + " " + inputFile + " " + outputFile);
+                System.err.println("     Error output:");
+                System.err.println(output.toString());
+            } else {
+                System.out.println("  ✅ Generated: " + outputFile);
+            }
+        } catch (IOException | InterruptedException e) {
+            System.err.println("  ⚠️  Failed to run Python script: " + scriptName);
+            System.err.println("     " + e.getMessage());
+        }
     }
 
     // ===========================================
