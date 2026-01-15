@@ -6,31 +6,31 @@ import java.util.List;
 /**
  * 解析の過程を記録し , CSVファイルに出力するクラス
  * 
- * ★追加機能: 親子関係追跡情報の出力
+ * ★機能:
  * - TriggerCells: このセルを確定させた直接の原因となったRegionのトリガーセル
  * - ParentSnapshot: 確定元Regionの親スナップショット
  * - GenerationDepth: 確定元Regionの派生深度
+ * - Height: グラフ可視化用の高さ（Lv1は横移動、Lv2-6は縦移動）
  */
 public class AnalysisLogger {
 
-    // ログ1行分のデータを保持する内部クラス
     private static class LogEntry {
         int round;
         int step;
         int cellIdx;
-        String result; // "SAFE" or "MINE"
+        String result;
         int difficultyLevel;
         int regionId;
         String regionContent;
         String sourceHints;
-        // ★追加フィールド
-        String triggerCells; // このセル確定の元となったRegion更新のトリガー
-        String parentSnapshot; // 確定元Regionの親スナップショット
-        int generationDepth; // 確定元Regionの派生深度
+        String triggerCells;
+        String parentSnapshot;
+        int generationDepth;
+        int height;
 
         public LogEntry(int round, int step, int cellIdx, String result, int difficultyLevel,
                 int regionId, String regionContent, String sourceHints,
-                String triggerCells, String parentSnapshot, int generationDepth) {
+                String triggerCells, String parentSnapshot, int generationDepth, int height) {
             this.round = round;
             this.step = step;
             this.cellIdx = cellIdx;
@@ -42,13 +42,13 @@ public class AnalysisLogger {
             this.triggerCells = triggerCells;
             this.parentSnapshot = parentSnapshot;
             this.generationDepth = generationDepth;
+            this.height = height;
         }
 
         public String toCSVString() {
-            // カンマを含む可能性のあるフィールドはダブルクォートで囲む
-            return String.format("%d,%d,%d,%s,%d,%d,\"%s\",\"%s\",\"%s\",\"%s\",%d",
+            return String.format("%d,%d,%d,%s,%d,%d,\"%s\",\"%s\",\"%s\",\"%s\",%d,%d",
                     round, step, cellIdx, result, difficultyLevel, regionId,
-                    regionContent, sourceHints, triggerCells, parentSnapshot, generationDepth);
+                    regionContent, sourceHints, triggerCells, parentSnapshot, generationDepth, height);
         }
     }
 
@@ -60,56 +60,41 @@ public class AnalysisLogger {
         this.stepCounter = 0;
     }
 
-    /**
-     * ラウンドが変わるたびにステップカウンターをリセットするかどうかは要件次第ですが ,
-     * ここでは「ラウンド内連番」として管理するためにリセットメソッドを用意します.
-     */
     public void startNewRound() {
         this.stepCounter = 0;
     }
 
     /**
-     * ★追加: 初期ヒントをログに記録する（Round 0, Depth 0）
-     * 
-     * @param cellIdx   ヒントセルのインデックス
-     * @param hintValue ヒントの数値
+     * 初期ヒントをログに記録する（Round 0, Depth 0, Height 0）
      */
     public void logInitialHint(int cellIdx, int hintValue) {
         this.stepCounter++;
         logs.add(new LogEntry(
-                0, // Round 0
+                0, // Round
                 stepCounter, // Step
                 cellIdx, // CellIndex
                 "HINT(" + hintValue + ")", // Result
                 0, // DifficultyLevel
-                -1, // RegionID (なし)
+                -1, // RegionID
                 "", // RegionContent
                 "", // SourceHints
                 "", // TriggerCells
                 "", // ParentSnapshot
-                0 // GenerationDepth
+                0, // GenerationDepth
+                0 // Height
         ));
     }
 
     /**
-     * 確定ステップをログに記録する（従来版、後方互換）
-     */
-    public void logStep(int round, int cellIdx, String result, int level,
-            int regionId, String regionContent, String sourceHints) {
-        // 従来のメソッドは新しいメソッドに委譲（親子関係は空）
-        logStep(round, cellIdx, result, level, regionId, regionContent, sourceHints, "", "", 0);
-    }
-
-    /**
-     * ★追加: 親子関係情報付きの確定ステップをログに記録する
+     * 確定ステップをログに記録する（Height付き）
      */
     public void logStep(int round, int cellIdx, String result, int level,
             int regionId, String regionContent, String sourceHints,
-            String triggerCells, String parentSnapshot, int generationDepth) {
+            String triggerCells, String parentSnapshot, int generationDepth, int height) {
         this.stepCounter++;
         logs.add(new LogEntry(round, stepCounter, cellIdx, result, level,
                 regionId, regionContent, sourceHints,
-                triggerCells, parentSnapshot, generationDepth));
+                triggerCells, parentSnapshot, generationDepth, height));
     }
 
     /**
@@ -117,11 +102,9 @@ public class AnalysisLogger {
      */
     public void exportToCSV(String filename) {
         try (FileWriter writer = new FileWriter(filename)) {
-            // ★ヘッダー行（拡張版）
             writer.write(
-                    "Round,Step,CellIndex,Result,DifficultyLevel,RegionID,RegionContent,SourceHints,TriggerCells,ParentSnapshot,GenerationDepth\n");
+                    "Round,Step,CellIndex,Result,DifficultyLevel,RegionID,RegionContent,SourceHints,TriggerCells,ParentSnapshot,GenerationDepth,Height\n");
 
-            // データ行
             for (LogEntry entry : logs) {
                 writer.write(entry.toCSVString() + "\n");
             }

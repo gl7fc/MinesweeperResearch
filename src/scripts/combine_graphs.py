@@ -9,7 +9,7 @@ import os
 import glob
 import sys
 
-def combine_by_hint_folders(base_folder, output_path, spacing=10, label_width=80, scale=0.25):
+def combine_by_hint_folders(base_folder, output_path, spacing=10, label_width=500, scale=0.25):
     """
     ヒント数フォルダごとに画像を横並びにして縦に積み重ねる
     
@@ -89,7 +89,7 @@ def combine_by_hint_folders(base_folder, output_path, spacing=10, label_width=80
     draw = ImageDraw.Draw(canvas)
     
     # フォント設定（システムフォントを試行、スケールに応じてサイズ調整）
-    font_size = max(12, int(36 * scale))  # 最小12px
+    font_size = max(12, int(300 * scale))  # 最小12px
     try:
         # macOS
         font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", font_size)
@@ -133,19 +133,27 @@ def combine_by_hint_folders(base_folder, output_path, spacing=10, label_width=80
         
         y_offset += row_height + spacing
     
-    # 保存
-    canvas.save(output_path)
-    print(f"\n✅ 完成: {output_path}")
+    # 保存（拡張子で判定）
+    if output_path.lower().endswith('.pdf'):
+        # PDF出力（RGBに変換が必要）
+        canvas_rgb = canvas.convert('RGB')
+        canvas_rgb.save(output_path, 'PDF', resolution=150)
+        print(f"\n✅ 完成: {output_path} (PDF)")
+    else:
+        canvas.save(output_path)
+        print(f"\n✅ 完成: {output_path}")
+    
     print(f"   合計 {sum(len(r['images']) for r in rows_data)} 枚の画像を結合")
 
 
 if __name__ == "__main__":
     # 使い方: python combine_inference_graphs.py [入力フォルダ] [出力ファイル] [縮小率]
-    # 例: python combine_inference_graphs.py ./data result.png 0.25
+    # 例: python combine_inference_graphs.py ./data result.pdf 0.25
+    #     python combine_inference_graphs.py ./data result.png 0.5
     
-    input_folder = sys.argv[1] if len(sys.argv) >= 2 else "."
-    output_file = sys.argv[2] if len(sys.argv) >= 3 else "combined_inference_graphs.png"
-    scale = float(sys.argv[3]) if len(sys.argv) >= 4 else 0.25  # デフォルト25%
+    input_folder = sys.argv[1] if len(sys.argv) >= 2 else "/Users/blueb/Library/CloudStorage/GoogleDrive-rsu.merrypink@gmail.com/マイドライブ/2025/卒研/作業/251208/results_260112_121729/mines_30/layout_001/visualizations/"
+    output_file = sys.argv[2] if len(sys.argv) >= 3 else "combined_inference_graphs.pdf"  # デフォルトPDF
+    scale = float(sys.argv[3]) if len(sys.argv) >= 4 else 0.5  # デフォルト25%
     
     print(f"🔍 入力: {input_folder}")
     print(f"📄 出力: {output_file}\n")

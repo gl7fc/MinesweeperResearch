@@ -1,4 +1,6 @@
 import java.io.*;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /**
@@ -8,7 +10,9 @@ import java.util.*;
  * 地雷数 M → 地雷配置 1〜N → 最小化試行 1〜T
  * 各試行で HintCountCalculator + TechniqueAnalyzer を実行
  * 
- * ★修正版: 画像ファイルのみをヒント数ごとにフォルダ分け
+ * ★修正版:
+ * - 出力ディレクトリを自動命名 (results_yymmdd_hhmmss/)
+ * - Pythonスクリプトのディレクトリを定数化
  */
 public class ExperimentRunner {
 
@@ -16,12 +20,27 @@ public class ExperimentRunner {
     // 実験パラメータ（小規模テスト用）
     // ===========================================
     private static final int SIZE = 10; // 盤面サイズ
-    private static final int[] MINE_COUNTS = { 30 }; // 地雷数（本番: {15, 20, 25, 30}）
-    private static final int LAYOUTS_PER_MINE = 1; // 地雷配置数（本番: 100）
-    private static final int TRIALS_PER_LAYOUT = 10; // 試行数（本番: 20）
+    private static final int[] MINE_COUNTS = { 30 }; // 地雷数
+    private static final int LAYOUTS_PER_MINE = 1; // 地雷配置数
+    private static final int TRIALS_PER_LAYOUT = 2; // 試行数
 
-    // 出力ディレクトリ
-    private static final String OUTPUT_DIR = "experiment_results_04/";
+    // ===========================================
+    // ディレクトリ設定
+    // ===========================================
+    // 出力ディレクトリ（自動生成）
+    private static final String OUTPUT_DIR = generateOutputDir();
+
+    // Pythonスクリプトのディレクトリ（必要に応じて変更）
+    private static final String PYTHON_SCRIPT_DIR = "src/scripts/";
+
+    /**
+     * 出力ディレクトリ名を生成 (results_yyMMdd_HHmmss/)
+     */
+    private static String generateOutputDir() {
+        LocalDateTime now = LocalDateTime.now();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyMMdd_HHmmss");
+        return "results_" + now.format(formatter) + "/";
+    }
 
     // ===========================================
     // メイン処理
@@ -32,6 +51,8 @@ public class ExperimentRunner {
         System.out.println("地雷数: " + Arrays.toString(MINE_COUNTS));
         System.out.println("配置数/地雷数: " + LAYOUTS_PER_MINE);
         System.out.println("試行数/配置: " + TRIALS_PER_LAYOUT);
+        System.out.println("出力先: " + OUTPUT_DIR);
+        System.out.println("Pythonスクリプト: " + PYTHON_SCRIPT_DIR);
         System.out.println();
 
         // 出力ディレクトリ作成
@@ -46,7 +67,7 @@ public class ExperimentRunner {
             System.out.println("地雷数: " + mineCount);
             System.out.println("========================================");
 
-            String mineDir = OUTPUT_DIR + "/mines_" + mineCount;
+            String mineDir = OUTPUT_DIR + "mines_" + mineCount;
             new File(mineDir).mkdirs();
 
             // 地雷配置ループ
@@ -65,6 +86,9 @@ public class ExperimentRunner {
                 // ★可視化用ディレクトリを作成
                 String visualizationDir = layoutDir + "/visualizations";
                 new File(visualizationDir).mkdirs();
+
+                String puzzleDir = layoutDir + "/puzzles";
+                new File(puzzleDir).mkdirs();
 
                 // 試行ループ
                 for (int trialId = 1; trialId <= TRIALS_PER_LAYOUT; trialId++) {
@@ -106,7 +130,7 @@ public class ExperimentRunner {
         }
 
         // サマリーCSV出力
-        saveSummaryCSV(OUTPUT_DIR + "/summary.csv", allResults);
+        saveSummaryCSV(OUTPUT_DIR + "summary.csv", allResults);
 
         System.out.println("\n=== 実験完了 ===");
         System.out.println("総サンプル数: " + allResults.size());
@@ -180,21 +204,27 @@ public class ExperimentRunner {
 
         String trialPrefix = "trial_" + String.format("%02d", trialId);
 
-        // ヒートマップ生成
-        String heatmapOutput = outputDir + "/" + trialPrefix + "_heatmap.png";
-        runPythonScript("heatmap_generator.py", heatmapDataPath, heatmapOutput);
+        // // ヒートマップ生成
+        // String heatmapOutput = outputDir + "/" + trialPrefix + "_heatmap.png";
+        // runPythonScript(PYTHON_SCRIPT_DIR + "heatmap_generator.py", heatmapDataPath,
+        // heatmapOutput);
+
+        // 盤面生成
+        String heatmapOutput = outputDir + "/" + trialPrefix + "_puzzle.png";
+        runPythonScript(PYTHON_SCRIPT_DIR + "board_exporter.py", heatmapDataPath,
+                heatmapOutput);
 
         // 推論グラフ生成
         String graphOutput = outputDir + "/" + trialPrefix + "_inference_graph.png";
-        runPythonScript("InferenceGraph.py", analysisLogPath, graphOutput);
+        runPythonScript(PYTHON_SCRIPT_DIR + "InferenceGraph.py", analysisLogPath, graphOutput);
     }
 
     /**
      * Pythonスクリプトを実行
      */
-    private static void runPythonScript(String scriptName, String inputFile, String outputFile) {
+    private static void runPythonScript(String scriptPath, String inputFile, String outputFile) {
         try {
-            ProcessBuilder pb = new ProcessBuilder("python3", scriptName, inputFile, outputFile);
+            ProcessBuilder pb = new ProcessBuilder("python3", scriptPath, inputFile, outputFile);
             pb.redirectErrorStream(true);
             Process process = pb.start();
 
@@ -209,15 +239,13 @@ public class ExperimentRunner {
 
             int exitCode = process.waitFor();
             if (exitCode != 0) {
-                System.err.println("  ⚠️  Python script failed: " + scriptName + " (exit code: " + exitCode + ")");
-                System.err.println("     Command: python3 " + scriptName + " " + inputFile + " " + outputFile);
+                System.err.println("  ⚠️  Python script failed: " + scriptPath + " (exit code: " + exitCode + ")");
+                System.err.println("     Command: python3 " + scriptPath + " " + inputFile + " " + outputFile);
                 System.err.println("     Error output:");
                 System.err.println(output.toString());
-            } else {
-                System.out.println("  ✅ Generated: " + outputFile);
             }
         } catch (IOException | InterruptedException e) {
-            System.err.println("  ⚠️  Failed to run Python script: " + scriptName);
+            System.err.println("  ⚠️  Failed to run Python script: " + scriptPath);
             System.err.println("     " + e.getMessage());
         }
     }

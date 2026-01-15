@@ -4,7 +4,7 @@ public class Main {
     public static void main(String[] args) {
         int size = 10;
         int bombs = 30;
-        int puzzles = 10;
+        int puzzles = 1;
 
         // パズル生成
         int[] board = PuzzleGenerator.generatePuzzle(size, bombs);
@@ -19,35 +19,37 @@ public class Main {
             System.out.println("\n===== 生成された問題 (盤面" + (i + 1) + ", ヒント数=" + pm.getHintCount() + ") =====");
             PuzzleGenerator.printBoard(puzzle, size);
 
-            // // --- HintCountCalculator 解析 ---
-            // System.out.println("\n--- [HintCountCalculator] 難易度解析実行中... ---");
-            // HintCountCalculator calculator = new HintCountCalculator(puzzle, board,
-            // size);
-            // calculator.calculate();
-            // int[] kHintDifficulties = calculator.getDifficultyMap();
+            // --- HintCountCalculator 解析 ---
+            System.out.println("\n--- [HintCountCalculator] 難易度解析実行中... ---");
+            HintCountCalculator calculator = new HintCountCalculator(puzzle, board,
+                    size);
+            calculator.calculate();
+            int[] kHintDifficulties = calculator.getDifficultyMap();
 
-            // System.out.println("--- 解析結果 (k-Hint) ---");
-            // printAnalysis(puzzle, kHintDifficulties, size);
+            System.out.println("--- 解析結果 (k-Hint) ---");
+            printAnalysis(puzzle, kHintDifficulties, size);
 
-            // // --- TechniqueAnalyzer 解析 ---
-            // System.out.println("\n--- [TechniqueAnalyzer] テクニック解析実行中... ---");
-            // TechniqueAnalyzer analyzer = new TechniqueAnalyzer(puzzle, board, size);
-            // analyzer.analyze();
-            // int[] taDifficulties = analyzer.getDifficultyMap();
+            // --- TechniqueAnalyzer 解析 ---
+            System.out.println("\n--- [TechniqueAnalyzer] テクニック解析実行中... ---");
+            TechniqueAnalyzer analyzer = new TechniqueAnalyzer(puzzle, board, size);
+            analyzer.analyze();
+            int[] taDifficulties = analyzer.getDifficultyMap();
 
-            // System.out.println("\n--- 解析結果 (Technique Level) ---");
-            // printAnalysis(puzzle, taDifficulties, size);
+            System.out.println("\n--- 解析結果 (Technique Level) ---");
+            printAnalysis(puzzle, taDifficulties, size);
 
-            // // --- ヒートマップ用データ出力 ---
-            // System.out.println("\n--- Exporting data for heatmap... ---");
-            // BoardExporter.exportToCSV(
-            // "analysis_data_" + (i + 1) + ".csv",
-            // size,
-            // board, // 正解盤面
-            // puzzle, // 問題盤面
-            // taDifficulties, // Technique Level
-            // kHintDifficulties // k-Hint
-            // );
+            // --- ヒートマップ用データ出力 ---
+            System.out.println("\n--- Exporting data for heatmap... ---");
+            BoardExporter.exportToCSV(
+                    "analysis_data_" + (i + 1) + ".csv",
+                    size,
+                    board, // 正解盤面
+                    puzzle, // 問題盤面
+                    taDifficulties, // Technique Level
+                    kHintDifficulties // k-Hint
+            );
+            analyzer.exportLogToCSV("analysis_log.csv");
+
         }
     }
 
