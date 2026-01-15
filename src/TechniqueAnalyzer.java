@@ -1,28 +1,12 @@
 import java.util.*;
 
-/**
- * 盤面全体の状態を管理し , 推論のステップを進めるクラス.
- * 「Region事前全列挙モデル」に基づき実装.
- * 
- * ★修正版仕様:
- * 1. Lv2/Lv3のRegionは「初期盤面」からのみ生成し , 以降は新規生成しない.
- * 2. ラウンド進行時は , 既存のLv2/Lv3 Regionをメンテナンス(確定セルの除去)して維持する.
- * 3. Lv1 Regionのみ , 毎ラウンド最新の盤面から再生成する.
- * 4. AnalysisLogger によるCSV出力機能を追加.
- * 5. ★親子関係追跡: 1つのRegionから確定が出たら即return、triggerCellsを正確に記録
- * 6. ★Height計算: グラフ可視化用の高さを計算
- */
 public class TechniqueAnalyzer {
 
-    // =========================================================================
-    // 定数定義
-    // =========================================================================
     private static final int MINE = -1;
     private static final int IGNORE = -2;
     private static final int FLAGGED = -3;
     private static final int SAFE = -4;
 
-    // 難易度定数
     public static final int LV_UNSOLVED = -1;
     public static final int LV_1 = 1;
     public static final int LV_2 = 2;
@@ -31,9 +15,6 @@ public class TechniqueAnalyzer {
     public static final int LV_5 = 5;
     public static final int LV_6 = 6;
 
-    // =========================================================================
-    // フィールド
-    // =========================================================================
     private int[] board;
     private final int[] completeBoard;
     private final int[] difficultyMap;
@@ -49,9 +30,6 @@ public class TechniqueAnalyzer {
     private Set<Integer> lastConfirmedCells = new HashSet<>();
     private Map<Integer, Integer> cellDepthMap = new HashMap<>();
 
-    // ★追加: グラフ可視化用の高さマップ
-    private Map<Integer, Integer> cellHeightMap = new HashMap<>();
-
     public TechniqueAnalyzer(int[] currentBoard, int[] solution, int size) {
         this.board = Arrays.copyOf(currentBoard, currentBoard.length);
         this.completeBoard = solution;
@@ -62,9 +40,6 @@ public class TechniqueAnalyzer {
         this.logger = new AnalysisLogger();
     }
 
-    /**
-     * 推論結果を保持するクラス
-     */
     private static class DeductionResult {
         Map<Integer, Integer> deduced;
         Map<Integer, Region> cellToSourceRegion;
@@ -81,16 +56,11 @@ public class TechniqueAnalyzer {
         }
     }
 
-    /**
-     * 解析のメインループ
-     */
     public void analyze() {
-        // 初期ヒントは難易度0、depth=0、height=0
         for (int i = 0; i < board.length; i++) {
             if (board[i] >= 0) {
                 difficultyMap[i] = 0;
                 cellDepthMap.put(i, 0);
-                cellHeightMap.put(i, 0);
                 logger.logInitialHint(i, board[i]);
             }
         }
@@ -103,13 +73,11 @@ public class TechniqueAnalyzer {
             changed = false;
             logger.startNewRound();
 
-            // Regionの生成とメンテナンス
             regionPool = updateAndGenerateRegions(board, regionPool, !isDerivedRegionsGenerated, lastConfirmedCells);
             if (!isDerivedRegionsGenerated) {
                 isDerivedRegionsGenerated = true;
             }
 
-            // Lv1-3で確定を試みる
             DeductionResult result = solveFromPool(board, regionPool);
 
             if (!result.isEmpty()) {
@@ -128,7 +96,6 @@ public class TechniqueAnalyzer {
                 changed = true;
                 currentRound++;
             } else {
-                // Lv4-6を試す
                 int[] lv4Result = solveLv4();
 
                 if (lv4Result != null) {
@@ -151,99 +118,33 @@ public class TechniqueAnalyzer {
     }
 
     // =========================================================================
-    // ★Height計算メソッド
-    // =========================================================================
-
-    /**
-     * セル確定時の高さを計算する
-     * 
-     * @param level       難易度レベル (Lv1-6)
-     * @param depth       GenerationDepth
-     * @param parentCells 親セル（SourceHints + TriggerCells）
-     * @return 計算された高さ
-     */
-    private int calculateHeight(int level, int depth, Set<Integer> parentCells) {
-        // 初期ヒント
-        if (level == 0)
-            return 0;
-
-        // 親の最大高さを取得
-        int maxParentHeight = 0;
-        for (int parent : parentCells) {
-            int h = cellHeightMap.getOrDefault(parent, 0);
-            if (h > maxParentHeight) {
-                maxParentHeight = h;
-            }
-        }
-
-        // depth=1 かつ Lv1 → 高さ1
-        if (depth == 1 && level == 1) {
-            return 1;
-        }
-
-        // depth>1 かつ Lv1 → 親の高さ（変わらない）
-        if (level == 1) {
-            return maxParentHeight;
-        }
-
-        // Lv2〜6 → 親の最大高さ + level
-        return maxParentHeight + level;
-    }
-
-    /**
-     * 親セルを収集する（SourceHints + TriggerCells）
-     */
-    private Set<Integer> collectParentCells(Region r) {
-        Set<Integer> parents = new HashSet<>();
-        parents.addAll(parseSourceHints(r.getSourceHintsString()));
-        parents.addAll(r.getTriggerCells());
-        return parents;
-    }
-
-    // =========================================================================
     // ログ記録
     // =========================================================================
 
-    /**
-     * 推論結果をログに記録（Height付き）
-     */
     private void logDeduction(DeductionResult result) {
-        // まず全セルのdepthとheightを計算
         Map<Integer, Integer> newDepths = new HashMap<>();
-        Map<Integer, Integer> newHeights = new HashMap<>();
 
         for (Map.Entry<Integer, Integer> entry : result.deduced.entrySet()) {
             int cell = entry.getKey();
             Region r = result.cellToSourceRegion.get(cell);
-            int level = Math.max(LV_1, r.getOriginLevel());
             int depth = calculateDepth(r);
-
-            // Height計算
-            Set<Integer> parentCells = collectParentCells(r);
-            int height = calculateHeight(level, depth, parentCells);
-
             newDepths.put(cell, depth);
-            newHeights.put(cell, height);
         }
 
-        // ログ出力
         for (Map.Entry<Integer, Integer> entry : result.deduced.entrySet()) {
             int cell = entry.getKey();
             int val = entry.getValue();
             Region r = result.cellToSourceRegion.get(cell);
             int level = Math.max(LV_1, r.getOriginLevel());
             int depth = newDepths.get(cell);
-            int height = newHeights.get(cell);
             String type = (val == FLAGGED) ? "MINE" : "SAFE";
 
             logger.logStep(currentRound, cell, type, level,
                     r.getId(), r.toLogString(), r.getSourceHintsString(),
-                    r.getTriggerCellsString(), r.getParentRegionSnapshot(), depth, height);
+                    r.getTriggerCellsString(), r.getParentRegionSnapshot(), depth);
         }
 
-        // 一括でマップに追加
         cellDepthMap.putAll(newDepths);
-        cellHeightMap.putAll(newHeights);
     }
 
     private int calculateDepth(Region r) {
@@ -271,30 +172,6 @@ public class TechniqueAnalyzer {
             }
         }
         return maxNeighborDepth + 1;
-    }
-
-    /**
-     * Lv4-6で確定したセルの親セルを収集
-     */
-    private Set<Integer> collectParentCellsForLv4(int cellIdx) {
-        Set<Integer> parents = new HashSet<>();
-        List<Integer> neighbors = getNeighbors(cellIdx);
-
-        // 周囲のヒントセルを追加
-        for (int nb : neighbors) {
-            if (board[nb] >= 0) {
-                parents.add(nb);
-            }
-        }
-
-        // 周囲の確定セル（depth > 0）も追加
-        for (int nb : neighbors) {
-            if (cellDepthMap.containsKey(nb) && cellDepthMap.get(nb) > 0) {
-                parents.add(nb);
-            }
-        }
-
-        return parents;
     }
 
     private String getTriggerCellsForLv4(int cellIdx) {
@@ -622,18 +499,13 @@ public class TechniqueAnalyzer {
                 int finalLevel = contradictionLevel + 3;
                 int depth = calculateDepthForLv4(cellIdx);
 
-                // ★Height計算
-                Set<Integer> parentCells = collectParentCellsForLv4(cellIdx);
-                int height = calculateHeight(finalLevel, depth, parentCells);
-
                 cellDepthMap.put(cellIdx, depth);
-                cellHeightMap.put(cellIdx, height);
 
                 String triggerCellsStr = getTriggerCellsForLv4(cellIdx);
 
                 logger.logStep(currentRound, cellIdx, type, finalLevel, -1,
                         "Lv" + finalLevel + "-Contradiction", "Assumed:" + assumedType,
-                        triggerCellsStr, "", depth, height);
+                        triggerCellsStr, "", depth);
 
                 return new int[] { cellIdx, confirmedValue, finalLevel };
             }
@@ -767,28 +639,22 @@ public class TechniqueAnalyzer {
         }
     }
 
-    // =========================================================================
-    // デバッグ用
-    // =========================================================================
-
     public void printCurrentBoard(String label) {
         System.out.println("--- Board State [" + label + "] ---");
         for (int i = 0; i < board.length; i++) {
             int val = board[i];
-            if (val == MINE) {
+            if (val == MINE)
                 System.out.print(" . ");
-            } else if (val == FLAGGED) {
+            else if (val == FLAGGED)
                 System.out.print(" F ");
-            } else if (val == SAFE) {
+            else if (val == SAFE)
                 System.out.print(" S ");
-            } else if (val == IGNORE) {
+            else if (val == IGNORE)
                 System.out.print(" - ");
-            } else {
+            else
                 System.out.printf(" %d ", val);
-            }
-            if ((i + 1) % size == 0) {
+            if ((i + 1) % size == 0)
                 System.out.println();
-            }
         }
         System.out.println("-----------------------------------");
     }
