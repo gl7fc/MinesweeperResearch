@@ -16,8 +16,8 @@ target/
 # Experiment outputs
 experiment_results/
 *.png
-analysis_log*.csv
-heatmap_data*.csv
+*.csv
+
 summary.csv
 summary.xlsx
 
