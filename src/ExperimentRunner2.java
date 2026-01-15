@@ -32,7 +32,7 @@ public class ExperimentRunner2 {
     // ===========================================
     private static final int SIZE = 10;
     private static final int MINE_COUNT = 30;
-    private static final int LAYOUTS = 5;
+    private static final int LAYOUTS = 1;
     private static final int PUZZLES_PER_LAYOUT = 2;
 
     // ===========================================
@@ -114,7 +114,8 @@ public class ExperimentRunner2 {
                         dataDir + "/" + puzzlePrefix + "_heatmap.csv",
                         dataDir + "/" + puzzlePrefix + "_analysis_log.csv",
                         puzzleDir,
-                        puzzlePrefix);
+                        puzzlePrefix,
+                        dataDir);
 
                 System.out.println("ヒント数=" + hintCount + ", Lv_max=" + result.lvMax);
             }
@@ -183,15 +184,21 @@ public class ExperimentRunner2 {
             String heatmapDataPath,
             String analysisLogPath,
             String puzzleDir,
-            String puzzlePrefix) {
+            String puzzlePrefix,
+            String dataDir) {
 
         // 盤面画像生成
         String boardOutput = puzzleDir + "/" + puzzlePrefix + "_board.png";
         runPythonScript(PYTHON_SCRIPT_DIR + "board_exporter.py", heatmapDataPath, boardOutput);
 
-        // 推論グラフ生成
-        String graphOutput = puzzleDir + "/" + puzzlePrefix + "_graph.png";
-        runPythonScript(PYTHON_SCRIPT_DIR + "InferenceGraph.py", analysisLogPath, graphOutput);
+        // 推論グラフ生成（2段階処理）
+        // Step 1: analysis_log.csv → height_calculator.py → graph_data.csv
+        String graphDataPath = dataDir + "/" + puzzlePrefix + "_graph_data.csv";
+        runPythonScript(PYTHON_SCRIPT_DIR + "height_calculator.py", analysisLogPath, graphDataPath);
+
+        // Step 2: graph_data.csv → InferenceGraph.py → inference_graph.png
+        String graphOutput = puzzleDir + "/" + puzzlePrefix + "_inference_graph.png";
+        runPythonScript(PYTHON_SCRIPT_DIR + "InferenceGraph.py", graphDataPath, graphOutput);
     }
 
     /**
