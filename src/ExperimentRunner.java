@@ -87,9 +87,6 @@ public class ExperimentRunner {
                 String visualizationDir = layoutDir + "/visualizations";
                 new File(visualizationDir).mkdirs();
 
-                String puzzleDir = layoutDir + "/puzzles";
-                new File(puzzleDir).mkdirs();
-
                 // 試行ループ
                 for (int trialId = 1; trialId <= TRIALS_PER_LAYOUT; trialId++) {
                     System.out.print("  Trial " + trialId + "... ");
