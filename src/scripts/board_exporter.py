@@ -1,11 +1,3 @@
-#!/usr/bin/env python3
-"""
-マインスイーパ難易度解析結果のヒートマップ可視化スクリプト（初期盤面のみ）
-
-使い方:
-    python heatmap_generator.py <board_data.csv> <output.png>
-"""
-
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
